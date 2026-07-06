@@ -1,0 +1,18 @@
+{
+  "schema_version": "v1",
+  "name_for_human": "Canchas Sintéticas",
+  "name_for_model": "canchas_sinteticas",
+  "description_for_human": "Consulta disponibilidad, crea y cancela reservas de canchas de fútbol sintético.",
+  "description_for_model": "Plugin para consultar disponibilidad de canchas de fútbol sintético, crear reservas, listar reservas de un usuario y cancelar reservas existentes.",
+  "auth": {
+    "type": "none"
+  },
+  "api": {
+    "type": "openapi",
+    "url": "https://e168-200-12-181-194.ngrok-free.app/swagger/v1/swagger.json",
+    "is_user_authenticated": false
+  },
+  "logo_url": "https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Soccer%20ball/Flat/soccer_ball_flat.svg",
+  "contact_email": "soporte@canchassinteticas.local",
+  "legal_info_url": "https://canchassinteticas.local/legal"
+}

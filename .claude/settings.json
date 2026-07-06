@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s \"http://localhost:8080/swagger/v1/swagger.json\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('Paths:', list\\(d['paths'].keys\\(\\)\\)\\)\")",
+      "Bash(python3 -c ' *)",
+      "PowerShell(Set-Location \"c:\\\\Users\\\\jmgonzaleh\\\\canchas-sinteticas\\\\dotnet-backend\"; dotnet build 2>&1 | Select-String -Pattern \"\\(error|Compilación|Errores\\)\" | Where-Object { $_ -notmatch \"warning\" })",
+      "PowerShell(Set-Location \"c:\\\\Users\\\\jmgonzaleh\\\\canchas-sinteticas\\\\dotnet-backend\"; Start-Process -FilePath \"dotnet\" -ArgumentList \"run --project CanchasSinteticas.Api/CanchasSinteticas.Api.csproj --urls http://localhost:8080\" -NoNewWindow -PassThru | Out-Null; Start-Sleep -Seconds 10; $spec = Invoke-RestMethod \"http://localhost:8080/swagger/v1/swagger.json\"; $spec.paths.PSObject.Properties.Name; Write-Host \"---\"; $spec.components.schemas.PSObject.Properties.Name)",
+      "PowerShell(Get-Process -Name \"CanchasSinteticas.Api\" -ErrorAction SilentlyContinue)",
+      "PowerShell(Stop-Process -Force)"
+    ]
+  }
+}

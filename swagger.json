@@ -1,0 +1,391 @@
+{
+  "openapi": "3.0.4",
+  "info": {
+    "title": "Canchas Sintéticas API",
+    "description": "API de reservas de canchas de fútbol sintético. Permite consultar disponibilidad, crear y cancelar reservas.",
+    "version": "v1"
+  },
+  "servers": [
+    {
+      "url": "https://a409-190-242-101-109.ngrok-free.app/"
+    }
+  ],
+  "paths": {
+    "/api/fields/availability": {
+      "get": {
+        "tags": [
+          "Fields"
+        ],
+        "summary": "Disponibilidad de canchas",
+        "description": "Devuelve las 3 canchas con sus turnos libres (bloques de 1 hora) para la fecha indicada.",
+        "operationId": "GetFieldAvailability",
+        "parameters": [
+          {
+            "name": "date",
+            "in": "query",
+            "description": "Fecha exacta a consultar, en formato ISO 8601 YYYY-MM-DD (ejemplo: 2026-06-30). No usar nombres de mes en texto ni incluir la hora.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FieldAvailabilityOutput"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reservations": {
+      "post": {
+        "tags": [
+          "Reservations"
+        ],
+        "summary": "Crear reserva",
+        "description": "Crea una reserva para un turno específico. Valida solapamiento, anticipación mínima y límite de reservas activas.",
+        "operationId": "CreateReservation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReservationRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReservationRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReservationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReservationOutput"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Reservations"
+        ],
+        "summary": "Listar reservas del usuario",
+        "description": "Devuelve las reservas activas y próximas del usuario indicado.",
+        "operationId": "ListReservations",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "query",
+            "description": "Identificador del usuario",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ReservationOutput"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reservations/{reservationId}": {
+      "delete": {
+        "tags": [
+          "Reservations"
+        ],
+        "summary": "Cancelar reserva",
+        "description": "Cancela una reserva. Si se cancela con menos de 2 horas de anticipación, queda registrado como no-show.",
+        "operationId": "CancelReservation",
+        "parameters": [
+          {
+            "name": "reservationId",
+            "in": "path",
+            "description": "ID de la reserva a cancelar",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelReservationRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelReservationRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelReservationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CancelOutput"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CancelOutput": {
+        "type": "object",
+        "properties": {
+          "reservation_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "nullable": true
+          },
+          "no_show": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CancelReservationRequest": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "CreateReservationRequest": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "field_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "date": {
+            "type": "string",
+            "nullable": true
+          },
+          "start_time": {
+            "type": "string",
+            "nullable": true
+          },
+          "end_time": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "FieldAvailabilityOutput": {
+        "type": "object",
+        "properties": {
+          "field_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "field_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "available_slots": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SlotOutput"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true
+          },
+          "instance": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": { }
+      },
+      "ReservationOutput": {
+        "type": "object",
+        "properties": {
+          "reservation_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "field_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "field_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "user_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "date": {
+            "type": "string",
+            "nullable": true
+          },
+          "start_time": {
+            "type": "string",
+            "nullable": true
+          },
+          "end_time": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "SlotOutput": {
+        "type": "object",
+        "properties": {
+          "start_time": {
+            "type": "string",
+            "nullable": true
+          },
+          "end_time": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Fields"
+    },
+    {
+      "name": "Reservations"
+    }
+  ]
+}

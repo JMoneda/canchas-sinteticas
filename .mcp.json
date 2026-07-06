@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "iafit": {
+      "type": "stdio",
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "--hostname", "iafit",
+        "-p", "3456:3456",
+        "-v", "iafit-tokens:/root/.iafit",
+        "--env-file", "C:/Repos/iafit/.env",
+        "iafit-mcp:latest"
+      ]
+    }
+  }
+}

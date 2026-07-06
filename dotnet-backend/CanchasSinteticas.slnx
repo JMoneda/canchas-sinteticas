@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="CanchasSinteticas.Api/CanchasSinteticas.Api.csproj" />
+  <Project Path="CanchasSinteticas.Application/CanchasSinteticas.Application.csproj" />
+  <Project Path="CanchasSinteticas.Domain/CanchasSinteticas.Domain.csproj" />
+  <Project Path="CanchasSinteticas.Infrastructure/CanchasSinteticas.Infrastructure.csproj" />
+</Solution>
