@@ -1,19 +1,19 @@
-# Contract: Reservations API
+# Contrato: API de Reservas
 
-Base path: `/api/reservations`
+Ruta base: `/api/reservations`
 
 ---
 
 ## POST /api/reservations
 
-Creates a new reservation. All domain rules are enforced; a specific error is returned
-for each violation.
+Crea una nueva reserva. Se aplican todas las reglas de dominio; se retorna un error específico
+para cada violación.
 
-### Request Body
+### Cuerpo de la Solicitud
 
 ```json
 {
-  "user_id":    "string (required, non-empty)",
+  "user_id":    "string (requerido, no vacío)",
   "field_id":   1,
   "date":       "YYYY-MM-DD",
   "start_time": "HH:MM",
@@ -21,9 +21,9 @@ for each violation.
 }
 ```
 
-### Responses
+### Respuestas
 
-**201 Created** — Reservation confirmed.
+**201 Created** — Reserva confirmada.
 
 ```json
 {
@@ -38,41 +38,41 @@ for each violation.
 }
 ```
 
-**422 Unprocessable Entity** — Domain rule violated.
+**422 Unprocessable Entity** — Regla de dominio violada.
 
 ```json
 {
-  "error_type": "<ERROR_TYPE>",
-  "message":    "Human-readable explanation of the rule violation."
+  "error_type": "<TIPO_DE_ERROR>",
+  "message":    "Explicación legible por humanos de la violación de regla."
 }
 ```
 
-| `error_type` | Triggered when |
-|--------------|----------------|
-| `OVERLAP` | The requested time range overlaps with an existing active reservation on the same field |
-| `DURATION_INVALID` | The duration is less than 1 hour |
-| `INVALID_BLOCK` | Start or end time does not align to a 30-minute boundary |
-| `OPERATING_HOURS` | Start time is before 06:00 or end time is after 23:00 |
-| `ADVANCE_NOTICE` | Start time is less than 1 hour from the current moment |
-| `ACTIVE_LIMIT` | The user already holds 2 active (future, non-cancelled) reservations |
-| `FIELD_NOT_FOUND` | The provided `field_id` does not exist |
+| `error_type` | Se activa cuando |
+|--------------|-----------------|
+| `OVERLAP` | El rango de tiempo solicitado se superpone con una reserva activa existente en la misma cancha |
+| `DURATION_INVALID` | La duración es menor a 1 hora |
+| `INVALID_BLOCK` | La hora de inicio o fin no está alineada a un límite de 30 minutos |
+| `OPERATING_HOURS` | La hora de inicio es antes de las 06:00 o la hora de fin es después de las 23:00 |
+| `ADVANCE_NOTICE` | La hora de inicio es menos de 1 hora desde el momento actual |
+| `ACTIVE_LIMIT` | El usuario ya tiene 2 reservas activas (futuras, no canceladas) |
+| `FIELD_NOT_FOUND` | El `field_id` proporcionado no existe |
 
 ---
 
 ## GET /api/reservations
 
-Returns all upcoming active reservations for the session user. Only reservations
-whose end time is in the future and that have not been cancelled are returned.
+Retorna todas las próximas reservas activas del usuario de la sesión. Solo se retornan
+las reservas cuya hora de fin está en el futuro y que no han sido canceladas.
 
-### Request
+### Solicitud
 
-| Parameter | Location | Type   | Required | Description |
-|-----------|----------|--------|----------|-------------|
-| `user_id` | query    | string | Yes      | The session user's identifier |
+| Parámetro | Ubicación | Tipo   | Requerido | Descripción |
+|-----------|-----------|--------|-----------|-------------|
+| `user_id` | query     | string | Sí        | El identificador del usuario de la sesión |
 
-### Responses
+### Respuestas
 
-**200 OK** — List returned (may be empty).
+**200 OK** — Lista retornada (puede estar vacía).
 
 ```json
 [
@@ -87,33 +87,33 @@ whose end time is in the future and that have not been cancelled are returned.
 ]
 ```
 
-- Returns `[]` if the user has no upcoming active reservations (not an error).
-- Completed (past) and cancelled reservations are excluded.
+- Retorna `[]` si el usuario no tiene próximas reservas activas (no es un error).
+- Las reservas completadas (pasadas) y canceladas están excluidas.
 
 ---
 
 ## DELETE /api/reservations/{reservation_id}
 
-Cancels an active reservation. If the cancellation is submitted with less than
-2 hours of advance notice before the reservation start time, a no-show is also recorded.
+Cancela una reserva activa. Si la cancelación se envía con menos de 2 horas de aviso
+previo antes de la hora de inicio de la reserva, también se registra un no-show.
 
-### Request
+### Solicitud
 
-| Parameter        | Location | Type   | Required | Description |
-|------------------|----------|--------|----------|-------------|
-| `reservation_id` | path     | string | Yes      | UUID of the reservation |
+| Parámetro        | Ubicación | Tipo   | Requerido | Descripción |
+|------------------|-----------|--------|-----------|-------------|
+| `reservation_id` | path      | string | Sí        | UUID de la reserva |
 
-**Request body**:
+**Cuerpo de la solicitud**:
 
 ```json
 {
-  "user_id": "string (required)"
+  "user_id": "string (requerido)"
 }
 ```
 
-### Responses
+### Respuestas
 
-**200 OK** — Reservation cancelled.
+**200 OK** — Reserva cancelada.
 
 ```json
 {
@@ -123,41 +123,40 @@ Cancels an active reservation. If the cancellation is submitted with less than
 }
 ```
 
-- `no_show: true` when the cancellation was recorded with less than 2 hours of
-  advance notice.
+- `no_show: true` cuando la cancelación fue registrada con menos de 2 horas de aviso previo.
 
-**403 Forbidden** — Reservation does not belong to the requesting user.
+**403 Forbidden** — La reserva no pertenece al usuario solicitante.
 
 ```json
 {
   "error_type": "NOT_AUTHORIZED",
-  "message":    "This reservation does not belong to the provided user identifier."
+  "message":    "Esta reserva no pertenece al identificador de usuario proporcionado."
 }
 ```
 
-**404 Not Found** — Reservation does not exist.
+**404 Not Found** — La reserva no existe.
 
 ```json
 {
   "error_type": "NOT_FOUND",
-  "message":    "No reservation found with the provided identifier."
+  "message":    "No se encontró ninguna reserva con el identificador proporcionado."
 }
 ```
 
-**400 Bad Request** — Reservation is already cancelled.
+**400 Bad Request** — La reserva ya está cancelada.
 
 ```json
 {
   "error_type": "ALREADY_CANCELLED",
-  "message":    "This reservation has already been cancelled."
+  "message":    "Esta reserva ya ha sido cancelada."
 }
 ```
 
 ---
 
-## Common Conventions
+## Convenciones Comunes
 
-- All times use 24-hour format: `"HH:MM"` (e.g., `"06:00"`, `"22:30"`).
+- Todos los tiempos usan formato de 24 horas: `"HH:MM"` (p. ej., `"06:00"`, `"22:30"`).
 - All dates use ISO-8601: `"YYYY-MM-DD"`.
 - `reservation_id` is a UUID v4 string.
 - The backend operates in a single fixed timezone (local server time). No timezone

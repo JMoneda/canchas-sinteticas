@@ -1,104 +1,106 @@
-# Implementation Plan: Reservation System for Synthetic Football Fields
+# Plan de Implementación: Sistema de Reservas para Canchas de Fútbol Sintético
 
-**Branch**: `001-reservation-system` | **Date**: 2026-06-25 | **Spec**: [spec.md](spec.md)
+**Rama**: `001-reservation-system` | **Fecha**: 2026-06-25 | **Spec**: [spec.md](spec.md)
 
-**Input**: Feature specification from `/specs/001-reservation-system/spec.md`
+**Entrada**: Especificación de funcionalidad en `/specs/001-reservation-system/spec.md`
 
-## Summary
+## Resumen
 
-Build a full-stack MVP reservation system for synthetic football fields. The backend
-follows Clean Architecture (domain → application → infrastructure → API) with
-Python/FastAPI/SQLite. The frontend is a minimal React SPA using useState/useReducer.
-Domain-layer purity is non-negotiable: all 6 business rules live exclusively in the
-domain, each backed by unit tests written first (TDD). Persistence uses SQLAlchemy
-with ORM models physically separated from domain entities. Reservation "completion"
-is computed at query time (end_datetime < now) — no background job needed for MVP.
+Construir un sistema de reservas MVP full-stack para canchas de fútbol sintético. El backend
+sigue la Arquitectura Limpia (dominio → aplicación → infraestructura → API) con
+Python/FastAPI/SQLite. El frontend es una SPA React mínima usando useState/useReducer.
+La pureza de la capa de dominio es innegociable: las 6 reglas de negocio viven exclusivamente
+en el dominio, cada una respaldada por pruebas unitarias escritas primero (TDD). La
+persistencia usa SQLAlchemy con modelos ORM físicamente separados de las entidades de dominio.
+La "finalización" de reservas se computa en tiempo de consulta (end_datetime < now) — no se
+necesita ningún job en segundo plano para el MVP.
 
-## Technical Context
+## Contexto Técnico
 
-**Language/Version**: Python 3.11+ (backend) · Node.js 20+ / React 18 (frontend)
+**Lenguaje/Versión**: Python 3.11+ (backend) · Node.js 20+ / React 18 (frontend)
 
-**Primary Dependencies**:
+**Dependencias Principales**:
 - Backend: `fastapi`, `uvicorn`, `sqlalchemy`, `pytest`, `httpx`, `pytest-cov`
 - Frontend: `react`, `react-dom`, `vite`
 
-**Storage**: SQLite — single file (`backend/reservations.db`)
+**Almacenamiento**: SQLite — archivo único (`backend/reservations.db`)
 
-**Testing**: pytest + httpx TestClient (unit & integration)
+**Pruebas**: pytest + httpx TestClient (unitarias e integración)
 
-**Target Platform**: Local development server, single machine
+**Plataforma Objetivo**: Servidor de desarrollo local, una sola máquina
 
-**Project Type**: Web application — REST API backend + React SPA frontend
+**Tipo de Proyecto**: Aplicación web — backend REST API + frontend React SPA
 
-**Performance Goals**: MVP-level; no explicit throughput targets. SQLite serialization
-handles expected concurrent write load via IMMEDIATE transactions.
+**Objetivos de Rendimiento**: Nivel MVP; sin objetivos de rendimiento explícitos. La
+serialización de SQLite maneja la carga de escritura concurrente esperada mediante
+transacciones IMMEDIATE.
 
-**Constraints**: SQLite only · No microservices · No message queues · React
-useState/useReducer only · No Redux or external state libraries.
+**Restricciones**: Solo SQLite · Sin microservicios · Sin colas de mensajes · Solo React
+useState/useReducer · Sin Redux ni librerías de estado externas.
 
-**Scale/Scope**: MVP — 2–3 pre-seeded fields, handful of concurrent users, single timezone.
+**Escala/Alcance**: MVP — 2–3 canchas pre-cargadas, pocos usuarios concurrentes, una sola zona horaria.
 
-## Constitution Check
+## Verificación de Constitución
 
-*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
+*CONTROL: Debe pasar antes de la investigación de Fase 0. Verificar nuevamente después del diseño de Fase 1.*
 
-| Principle | Status | Notes |
+| Principio | Estado | Notas |
 |-----------|--------|-------|
-| I. Domain-First Architecture | ✅ PASS | All 6 rules in domain; API routes handle HTTP only |
-| II. Clean Architecture + SOLID | ✅ PASS | Dependency direction: domain ← application ← infrastructure/API |
-| III. Simplicity Over Engineering | ✅ PASS | Single process per tier; no extra layers beyond required |
-| IV. Test-Driven Domain | ✅ PASS | Domain unit tests written first (Red→Green→Refactor) |
-| V. MVP Scope Discipline | ✅ PASS | No payments, auth, admin, notifications |
+| I. Arquitectura Dominio-Primero | ✅ APROBADO | Las 6 reglas en dominio; las rutas API manejan solo HTTP |
+| II. Arquitectura Limpia + SOLID | ✅ APROBADO | Dirección de dependencias: dominio ← aplicación ← infraestructura/API |
+| III. Simplicidad sobre Ingeniería | ✅ APROBADO | Proceso único por nivel; sin capas adicionales más allá de lo requerido |
+| IV. Dominio Dirigido por Pruebas | ✅ APROBADO | Pruebas unitarias de dominio escritas primero (Rojo→Verde→Refactor) |
+| V. Disciplina de Alcance MVP | ✅ APROBADO | Sin pagos, autenticación, administración, notificaciones |
 
-**Domain Rules Coverage**:
+**Cobertura de Reglas de Dominio**:
 
-| Rule | Enforced In | Test |
-|------|-------------|------|
-| No field overlap | `TimeSlot.overlaps_with()` + repository check in use case | Required |
-| Min 1h / 30-min blocks | `TimeSlot` validation on construction | Required |
-| Operating hours 6 AM–11 PM | `TimeSlot` validation on construction | Required |
-| 1h advance notice | `TimeSlot.is_bookable(now)` | Required |
-| Max 2 active reservations | `CreateReservation` use case via repository count | Required |
-| No-show on late cancellation | `CancelReservation` use case | Required |
+| Regla | Aplicada En | Prueba |
+|-------|-------------|--------|
+| Sin superposición de canchas | `TimeSlot.overlaps_with()` + verificación en repositorio del caso de uso | Requerida |
+| Mín 1h / bloques de 30 min | Validación de `TimeSlot` en construcción | Requerida |
+| Horario operativo 6 AM–11 PM | Validación de `TimeSlot` en construcción | Requerida |
+| Aviso previo de 1h | `TimeSlot.is_bookable(now)` | Requerida |
+| Máx 2 reservas activas | Caso de uso `CreateReservation` vía conteo en repositorio | Requerida |
+| No-show en cancelación tardía | Caso de uso `CancelReservation` | Requerida |
 
-**Post-Phase 1 Re-check**: ✅ PASS — design artifacts (data model, contracts) introduce no
-new layers, dependencies, or abstractions beyond what the constitution permits.
+**Re-verificación post-Fase 1**: ✅ APROBADO — los artefactos de diseño (modelo de datos, contratos)
+no introducen nuevas capas, dependencias ni abstracciones más allá de lo que permite la constitución.
 
-**GATE: PASSED. No violations.**
+**CONTROL: APROBADO. Sin violaciones.**
 
-## Project Structure
+## Estructura del Proyecto
 
-### Documentation (this feature)
+### Documentación (esta funcionalidad)
 
 ```text
 specs/001-reservation-system/
-├── plan.md              # This file
-├── research.md          # Phase 0 output
-├── data-model.md        # Phase 1 output
-├── quickstart.md        # Phase 1 output
+├── plan.md              # Este archivo
+├── research.md          # Salida de Fase 0
+├── data-model.md        # Salida de Fase 1
+├── quickstart.md        # Salida de Fase 1
 ├── contracts/
 │   ├── fields.md        # GET /api/fields/availability
 │   └── reservations.md  # POST/GET/DELETE /api/reservations
-└── tasks.md             # Phase 2 output (/speckit-tasks)
+└── tasks.md             # Salida de Fase 2 (/speckit-tasks)
 ```
 
-### Source Code (repository root)
+### Código Fuente (raíz del repositorio)
 
 ```text
 backend/
 ├── domain/
 │   ├── entities/
 │   │   ├── __init__.py
-│   │   ├── field.py              # Field entity (id, name)
-│   │   └── reservation.py        # Reservation entity + status logic
+│   │   ├── field.py              # Entidad Cancha (id, name)
+│   │   └── reservation.py        # Entidad Reserva + lógica de estado
 │   ├── value_objects/
 │   │   ├── __init__.py
-│   │   └── time_slot.py          # TimeSlot: all booking validations
+│   │   └── time_slot.py          # TimeSlot: todas las validaciones de reserva
 │   ├── repositories/
 │   │   ├── __init__.py
-│   │   ├── field_repository.py   # Abstract port
-│   │   └── reservation_repository.py  # Abstract port
-│   └── exceptions.py             # DomainError and subclasses
+│   │   ├── field_repository.py   # Puerto abstracto
+│   │   └── reservation_repository.py  # Puerto abstracto
+│   └── exceptions.py             # DomainError y subclases
 ├── application/
 │   ├── use_cases/
 │   │   ├── __init__.py
@@ -106,22 +108,22 @@ backend/
 │   │   ├── cancel_reservation.py
 │   │   ├── list_reservations.py
 │   │   └── list_available_slots.py
-│   └── dtos.py                   # Input/output data classes
+│   └── dtos.py                   # Clases de datos entrada/salida
 ├── infrastructure/
-│   ├── database.py               # SQLAlchemy engine + session factory
+│   ├── database.py               # Motor SQLAlchemy + fábrica de sesiones
 │   ├── models/
 │   │   ├── __init__.py
-│   │   ├── field_model.py        # ORM model (separate from domain entity)
-│   │   ├── reservation_model.py  # ORM model
-│   │   └── no_show_model.py      # ORM model
+│   │   ├── field_model.py        # Modelo ORM (separado de la entidad de dominio)
+│   │   ├── reservation_model.py  # Modelo ORM
+│   │   └── no_show_model.py      # Modelo ORM
 │   ├── repositories/
 │   │   ├── __init__.py
 │   │   ├── sqlite_field_repository.py
 │   │   └── sqlite_reservation_repository.py
-│   └── seed.py                   # Pre-seeds fields on startup
+│   └── seed.py                   # Pre-carga canchas al inicio
 ├── api/
-│   ├── main.py                   # FastAPI app + lifespan
-│   ├── dependencies.py           # Dependency injection wiring
+│   ├── main.py                   # Aplicación FastAPI + lifespan
+│   ├── dependencies.py           # Cableado de inyección de dependencias
 │   └── routes/
 │       ├── __init__.py
 │       ├── fields.py             # GET /api/fields/availability
@@ -129,36 +131,35 @@ backend/
 ├── tests/
 │   ├── unit/
 │   │   └── domain/
-│   │       ├── test_time_slot.py          # TimeSlot validation rules
-│   │       ├── test_reservation_rules.py  # Overlap, limit, advance notice
-│   │       └── test_cancel_rules.py       # No-show threshold rule
+│   │       ├── test_time_slot.py          # Reglas de validación de TimeSlot
+│   │       ├── test_reservation_rules.py  # Superposición, límite, aviso previo
+│   │       └── test_cancel_rules.py       # Regla de umbral de no-show
 │   └── integration/
-│       └── test_api.py           # Full-stack endpoint tests via TestClient
+│       └── test_api.py           # Pruebas de endpoints full-stack vía TestClient
 ├── requirements.txt
 └── pyproject.toml
 
 frontend/
 ├── src/
 │   ├── components/
-│   │   ├── IdentifierGate.jsx    # Entry screen — captures user identifier
-│   │   ├── FieldAvailability.jsx # Slot grid per field
-│   │   ├── ReservationForm.jsx   # Booking form
-│   │   ├── ReservationList.jsx   # Active reservations + cancel button
-│   │   └── ErrorMessage.jsx      # Renders domain error messages
+│   │   ├── IdentifierGate.jsx    # Pantalla de entrada — captura identificador de usuario
+│   │   ├── FieldAvailability.jsx # Grilla de franjas por cancha
+│   │   ├── ReservationForm.jsx   # Formulario de reserva
+│   │   ├── ReservationList.jsx   # Reservas activas + botón cancelar
+│   │   └── ErrorMessage.jsx      # Renderiza mensajes de error de dominio
 │   ├── services/
-│   │   └── api.js                # All fetch calls to backend
-│   └── App.jsx                   # Root: useReducer session state + routing
+│   │   └── api.js                # Todas las llamadas fetch al backend
+│   └── App.jsx                   # Raíz: estado de sesión useReducer + enrutamiento
 ├── index.html
 ├── package.json
 └── vite.config.js
 ```
 
-**Structure Decision**: Web application (backend + frontend as separate root-level
-directories). Backend uses Clean Architecture layer directories as the primary
-organizational unit. ORM models (`infrastructure/models/`) and domain entities
-(`domain/entities/`) are in separate directories — no shared base class, no import
-from infrastructure into domain.
+**Decisión de Estructura**: Aplicación web (backend + frontend como directorios raíz separados).
+El backend usa directorios de capas de Arquitectura Limpia como unidad organizativa principal.
+Los modelos ORM (`infrastructure/models/`) y las entidades de dominio (`domain/entities/`) están
+en directorios separados — sin clase base compartida, sin importación desde infraestructura hacia dominio.
 
-## Complexity Tracking
+## Seguimiento de Complejidad
 
-> No violations detected in Constitution Check. No entries required.
+> No se detectaron violaciones en la Verificación de Constitución. No se requieren entradas.

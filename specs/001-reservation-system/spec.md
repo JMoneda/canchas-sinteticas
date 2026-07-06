@@ -1,165 +1,168 @@
-# Feature Specification: Reservation System for Synthetic Football Fields
+# Especificación de Funcionalidad: Sistema de Reservas para Canchas de Fútbol Sintético
 
-**Feature Branch**: `001-reservation-system`
+**Rama de funcionalidad**: `001-reservation-system`
 
-**Created**: 2026-06-25
+**Creado**: 2026-06-25
 
-**Status**: Draft
+**Estado**: Borrador
 
-**Input**: User description: "Build a reservation system for synthetic football fields. The system allows users to view available football fields and their time slots, create a reservation for a specific field, date, and time range, view their own existing reservations, cancel a reservation, and see clear validation errors when a reservation request violates a business rule."
+**Entrada**: Descripción del usuario: "Construir un sistema de reservas para canchas de fútbol sintético. El sistema permite a los usuarios ver las canchas disponibles y sus franjas horarias, crear una reserva para una cancha específica en una fecha y rango de tiempo determinados, ver sus propias reservas existentes, cancelar una reserva y recibir mensajes de error claros cuando una solicitud de reserva viola una regla de negocio."
 
-## Clarifications
+## Aclaraciones
 
-### Session 2026-06-25
+### Sesión 2026-06-25
 
-- Q: What is the status of a reservation after its time slot has passed — does it count toward the 2-active-reservation limit? → A: Reservations automatically transition to `completed` once their end time passes; completed reservations do NOT count toward the 2-reservation limit.
-- Q: How does the user identifier work in the UI — entered once per session or per action? → A: Entered once when the user opens the app; the interface retains it for all subsequent actions during the session.
-- Q: Should the "my reservations" view show only upcoming active reservations, or also completed/cancelled history? → A: Only upcoming active reservations — history is out of scope for the MVP.
+- P: ¿Cuál es el estado de una reserva después de que su franja horaria ha pasado? ¿Cuenta para el límite de 2 reservas activas? → R: Las reservas pasan automáticamente a `completed` una vez que su hora de fin ha pasado; las reservas completadas NO cuentan para el límite de 2 reservas.
+- P: ¿Cómo funciona el identificador de usuario en la UI — se ingresa una vez por sesión o por acción? → R: Se ingresa una vez cuando el usuario abre la aplicación; la interfaz lo retiene para todas las acciones posteriores durante la sesión.
+- P: ¿La vista "mis reservas" debe mostrar solo las reservas activas próximas, o también el historial de completadas/canceladas? → R: Solo las reservas activas próximas — el historial está fuera del alcance del MVP.
 
-## User Scenarios & Testing *(mandatory)*
+## Escenarios de Usuario y Pruebas *(obligatorio)*
 
-### User Story 1 - View Field Availability (Priority: P1)
+### Historia de Usuario 1 - Ver Disponibilidad de Canchas (Prioridad: P1)
 
-A user wants to know which football fields are available and when they can be booked
-on a given date, so they can choose a slot that fits their schedule before committing
-to a reservation.
+Un usuario quiere saber qué canchas de fútbol están disponibles y cuándo pueden reservarse
+en una fecha determinada, para elegir una franja que se adapte a su horario antes de
+confirmar una reserva.
 
-**Why this priority**: Without knowing availability, no booking decision can be made.
-This is the entry point of the entire user journey and a prerequisite for every other
-story. An independently delivered availability view already delivers value as a
-read-only scheduling reference.
+**Por qué esta prioridad**: Sin conocer la disponibilidad, no se puede tomar ninguna
+decisión de reserva. Este es el punto de entrada de todo el recorrido del usuario y un
+prerequisito para cada otra historia. Una vista de disponibilidad entregada de forma
+independiente ya genera valor como referencia de programación de solo lectura.
 
-**Independent Test**: Can be tested by querying availability for a date with pre-seeded
-fields and reservations, and verifying that occupied and available slots are correctly
-distinguished. Delivers standalone value as a scheduling reference.
+**Prueba Independiente**: Se puede probar consultando la disponibilidad para una fecha
+con canchas y reservas pre-cargadas, y verificando que las franjas ocupadas y disponibles
+se distinguen correctamente. Entrega valor independiente como referencia de programación.
 
-**Acceptance Scenarios**:
+**Escenarios de Aceptación**:
 
-1. **Given** a date is selected, **When** the user requests available time slots for all fields, **Then** each field shows its open 30-minute blocks within operating hours (6:00 AM – 11:00 PM), excluding already-reserved ranges.
-2. **Given** a field is fully booked for a date, **When** the user views availability for that date, **Then** the field shows no available slots for that day.
-3. **Given** a date in the past is requested, **When** the user views availability, **Then** no bookable slots are shown (past slots cannot be booked).
-
----
-
-### User Story 2 - Create a Reservation (Priority: P2)
-
-A user identifies themselves by a user identifier, selects a field, a date, a start
-time, and an end time, and submits a reservation request. The system either confirms
-the booking or returns a specific error explaining which rule was violated.
-
-**Why this priority**: Creating a reservation is the core value of the system. All
-domain rules are exercised in this story. A working booking flow alone constitutes a
-functional MVP.
-
-**Independent Test**: Can be tested end-to-end by submitting a valid reservation
-request and verifying it is persisted and returned in subsequent availability queries.
-Error paths can be tested by submitting requests that violate each rule independently.
-
-**Acceptance Scenarios**:
-
-1. **Given** a user provides a valid user identifier, field, date, start time, and end time that satisfy all domain rules, **When** the reservation is submitted, **Then** the reservation is confirmed and assigned a unique identifier.
-2. **Given** the requested time range overlaps with an existing reservation for the same field, **When** the reservation is submitted, **Then** the system rejects it with an error indicating the slot is not available.
-3. **Given** the requested duration is less than 1 hour or not aligned to 30-minute blocks, **When** the reservation is submitted, **Then** the system rejects it with an error describing the duration constraint.
-4. **Given** the start or end time falls outside 6:00 AM – 11:00 PM, **When** the reservation is submitted, **Then** the system rejects it with an error indicating the operating hours constraint.
-5. **Given** the reservation start time is less than 1 hour from the current time, **When** the reservation is submitted, **Then** the system rejects it with an advance notice error.
-6. **Given** the requesting user already has 2 active reservations, **When** a new reservation is submitted, **Then** the system rejects it with an error stating the active reservation limit has been reached.
+1. **Dado** que se selecciona una fecha, **Cuando** el usuario solicita las franjas horarias disponibles para todas las canchas, **Entonces** cada cancha muestra sus bloques de 30 minutos abiertos dentro del horario operativo (6:00 AM – 11:00 PM), excluyendo los rangos ya reservados.
+2. **Dado** que una cancha está completamente reservada para una fecha, **Cuando** el usuario ve la disponibilidad para esa fecha, **Entonces** la cancha no muestra franjas disponibles para ese día.
+3. **Dado** que se solicita una fecha en el pasado, **Cuando** el usuario ve la disponibilidad, **Entonces** no se muestran franjas reservables (las franjas pasadas no pueden reservarse).
 
 ---
 
-### User Story 3 - View Own Reservations (Priority: P3)
+### Historia de Usuario 2 - Crear una Reserva (Prioridad: P2)
 
-A user views a list of their upcoming active reservations (future, non-cancelled),
-showing the field name, date, time range for each. Completed and cancelled reservations
-are not shown — reservation history is out of scope for the MVP.
+Un usuario se identifica con un identificador de usuario, selecciona una cancha, una fecha,
+una hora de inicio y una hora de fin, y envía una solicitud de reserva. El sistema confirma
+la reserva o devuelve un error específico explicando qué regla fue violada.
 
-**Why this priority**: Users need visibility into their existing bookings to avoid
-duplicate requests and to decide which reservations to keep or cancel. Depends on
-Story 2 for meaningful data but is independently testable with seeded data.
+**Por qué esta prioridad**: Crear una reserva es el valor principal del sistema. Todas
+las reglas de dominio se ejercitan en esta historia. Un flujo de reserva funcional por sí
+solo constituye un MVP funcional.
 
-**Independent Test**: Can be tested by seeding reservations for a specific user
-identifier and verifying the correct list is returned when queried.
+**Prueba Independiente**: Se puede probar de extremo a extremo enviando una solicitud de
+reserva válida y verificando que se persiste y aparece en las consultas de disponibilidad
+posteriores. Los caminos de error se pueden probar enviando solicitudes que violan cada
+regla de forma independiente.
 
-**Acceptance Scenarios**:
+**Escenarios de Aceptación**:
 
-1. **Given** a user has two active reservations, **When** they view their reservations, **Then** both reservations appear with field name, date, start time, end time, and status.
-2. **Given** a user has no active reservations, **When** they view their reservations, **Then** an empty state is displayed with a clear message.
-3. **Given** a user has previously cancelled a reservation, **When** they view their reservations, **Then** cancelled and completed reservations do not appear in the active list.
-
----
-
-### User Story 4 - Cancel a Reservation (Priority: P4)
-
-A user selects one of their active reservations and requests cancellation. The system
-cancels the reservation and, if the cancellation is made with less than 2 hours of
-advance notice, additionally records a no-show against the user.
-
-**Why this priority**: Cancellation completes the reservation lifecycle and is essential
-for field availability management. Depends on Stories 2 and 3 for a complete user
-journey, but is testable with seeded data.
-
-**Independent Test**: Can be tested by seeding an active reservation and submitting a
-cancellation request, then verifying the reservation status changes and, when
-applicable, a no-show record is created.
-
-**Acceptance Scenarios**:
-
-1. **Given** a user has an active reservation and cancels it with more than 2 hours of advance notice, **When** the cancellation is confirmed, **Then** the reservation status changes to cancelled and no no-show is recorded.
-2. **Given** a user cancels a reservation with less than 2 hours before the reservation start time, **When** the cancellation is confirmed, **Then** the reservation status changes to cancelled AND a no-show record is created.
-3. **Given** a user attempts to cancel a reservation that does not belong to them, **When** the cancellation is submitted, **Then** the system rejects it with an appropriate error.
-4. **Given** a user attempts to cancel a reservation that is already cancelled, **When** the cancellation is submitted, **Then** the system rejects it with an appropriate error.
+1. **Dado** que un usuario proporciona un identificador válido, cancha, fecha, hora de inicio y hora de fin que satisfacen todas las reglas de dominio, **Cuando** se envía la reserva, **Entonces** la reserva se confirma y se le asigna un identificador único.
+2. **Dado** que el rango de tiempo solicitado se superpone con una reserva existente para la misma cancha, **Cuando** se envía la reserva, **Entonces** el sistema la rechaza con un error indicando que la franja no está disponible.
+3. **Dado** que la duración solicitada es menor a 1 hora o no está alineada a bloques de 30 minutos, **Cuando** se envía la reserva, **Entonces** el sistema la rechaza con un error que describe la restricción de duración.
+4. **Dado** que la hora de inicio o fin cae fuera de 6:00 AM – 11:00 PM, **Cuando** se envía la reserva, **Entonces** el sistema la rechaza con un error indicando la restricción de horario operativo.
+5. **Dado** que la hora de inicio de la reserva es menos de 1 hora desde el momento actual, **Cuando** se envía la reserva, **Entonces** el sistema la rechaza con un error de aviso previo.
+6. **Dado** que el usuario solicitante ya tiene 2 reservas activas, **Cuando** se envía una nueva reserva, **Entonces** el sistema la rechaza con un error indicando que se ha alcanzado el límite de reservas activas.
 
 ---
 
-### Edge Cases
+### Historia de Usuario 3 - Ver Mis Reservas (Prioridad: P3)
 
-- What happens when two users try to book the same field and time slot simultaneously? The system must ensure only one succeeds; the other receives an overlap error.
-- What happens when a reservation's start and end times span midnight? Operating hours end at 11:00 PM — no reservation may cross that boundary.
-- What happens when the user provides a user identifier that has no existing reservations? An empty list is returned; no error is raised.
-- What happens when a user requests a 30-minute slot (below the 1-hour minimum)? The system must reject with a minimum duration error.
-- What happens when a user requests a slot starting exactly 60 minutes from now? It must be accepted (boundary is inclusive on 1-hour advance notice).
-- What happens when a user tries to book a field that does not exist? The system must reject with a clear field-not-found error.
-- What happens when a user has 2 active reservations but both have now passed? Both transition to `completed`; the user is immediately free to make new reservations up to the limit of 2 active simultaneously.
+Un usuario ve una lista de sus próximas reservas activas (futuras, no canceladas),
+mostrando el nombre de la cancha, fecha y rango horario de cada una. Las reservas
+completadas y canceladas no se muestran — el historial de reservas está fuera del
+alcance del MVP.
 
-## Requirements *(mandatory)*
+**Por qué esta prioridad**: Los usuarios necesitan visibilidad sobre sus reservas
+existentes para evitar solicitudes duplicadas y decidir cuáles conservar o cancelar.
+Depende de la Historia 2 para datos significativos, pero es verificable de forma
+independiente con datos pre-cargados.
 
-### Functional Requirements
+**Prueba Independiente**: Se puede probar pre-cargando reservas para un identificador
+de usuario específico y verificando que se devuelve la lista correcta al consultarla.
 
-- **FR-001**: System MUST display all available synthetic football fields and their open time slots for a user-specified date, showing only bookable 30-minute increments within operating hours.
-- **FR-002**: System MUST present an identifier entry screen when the app is first opened; the entered identifier is retained for all subsequent actions within the session. All reservation operations (create, view, cancel) MUST use this session identifier without requiring the user to re-enter it.
-- **FR-003**: System MUST enforce that every reservation spans a minimum of 1 hour and that both start and end times align to 30-minute increments (e.g., 10:00, 10:30, 11:00).
-- **FR-004**: System MUST enforce operating hours: reservation start time MUST be 6:00 AM or later, and end time MUST be 11:00 PM or earlier.
-- **FR-005**: System MUST reject any reservation request where the start time is less than 1 hour from the moment the request is submitted.
-- **FR-006**: System MUST prevent two reservations for the same field from overlapping in time; the second conflicting request MUST be rejected.
-- **FR-007**: System MUST reject a reservation request if the requesting user already holds 2 or more active reservations. A reservation is active only while its end time is in the future and it has not been cancelled. Reservations whose end time has passed automatically transition to `completed` and MUST NOT count toward this limit.
-- **FR-008**: System MUST display all upcoming active reservations for the current session user — reservations whose end time is in the future and have not been cancelled. Completed and cancelled reservations MUST NOT appear in this view.
-- **FR-009**: System MUST allow a user to cancel one of their active reservations by reservation identifier.
-- **FR-010**: System MUST record a no-show when a cancellation is submitted with less than 2 hours of advance notice before the reservation start time.
-- **FR-011**: System MUST return a clear, specific, human-readable error message for every domain rule violation, identifying which rule was violated.
-- **FR-012**: System MUST reject cancellation requests for reservations that do not belong to the requesting user identifier.
+**Escenarios de Aceptación**:
 
-### Key Entities
+1. **Dado** que un usuario tiene dos reservas activas, **Cuando** ve sus reservas, **Entonces** ambas aparecen con nombre de cancha, fecha, hora de inicio, hora de fin y estado.
+2. **Dado** que un usuario no tiene reservas activas, **Cuando** ve sus reservas, **Entonces** se muestra un estado vacío con un mensaje claro.
+3. **Dado** que un usuario ha cancelado previamente una reserva, **Cuando** ve sus reservas, **Entonces** las reservas canceladas y completadas no aparecen en la lista activa.
 
-- **Field**: A synthetic football field available for reservation. Has a unique identifier and a human-readable name. Fields are pre-configured; creation and deletion are out of scope.
-- **Reservation**: A booking of a specific field by a user for a continuous time range on a given date. Has a unique identifier, a user identifier, field reference, date, start time, end time, and status (`active` / `completed` / `cancelled`). Status transitions: `active` → `completed` automatically when end time passes; `active` → `cancelled` when explicitly cancelled by the user. Only `active` reservations count toward the 2-reservation limit.
-- **NoShow**: A record that a user cancelled a reservation late. Linked to the original cancelled reservation. Contains the user identifier, reservation reference, and the timestamp of the cancellation.
+---
 
-## Success Criteria *(mandatory)*
+### Historia de Usuario 4 - Cancelar una Reserva (Prioridad: P4)
 
-### Measurable Outcomes
+Un usuario selecciona una de sus reservas activas y solicita su cancelación. El sistema
+cancela la reserva y, si la cancelación se realiza con menos de 2 horas de aviso previo,
+además registra un no-show contra el usuario.
 
-- **SC-001**: A user can successfully complete a valid reservation in 3 steps or fewer (select field + time, submit, receive confirmation).
-- **SC-002**: Every domain rule violation (overlap, operating hours, advance notice, duration, active reservation limit) results in a distinct, human-readable error message — 0 cases where a rule is violated silently or with a generic error.
-- **SC-003**: Availability view accurately reflects real-time booking state — 0 cases where an available slot shown is actually occupied, or vice versa.
-- **SC-004**: Cancellation with late notice reliably produces a no-show record in 100% of qualifying cases (cancellation < 2 hours before start).
-- **SC-005**: A user with an existing active reservation for a field cannot create a second overlapping reservation for that same field — 0 double-bookings in the system at any point.
+**Por qué esta prioridad**: La cancelación completa el ciclo de vida de la reserva y es
+esencial para la gestión de disponibilidad de canchas. Depende de las Historias 2 y 3
+para un recorrido de usuario completo, pero es verificable con datos pre-cargados.
 
-## Assumptions
+**Prueba Independiente**: Se puede probar pre-cargando una reserva activa y enviando una
+solicitud de cancelación, luego verificando el cambio de estado y, cuando corresponda,
+la creación del registro de no-show.
 
-- A user enters their identifier (e.g., a name or alias) once when opening the app; the interface retains it for the duration of the session and uses it automatically for all actions (creating, viewing, and cancelling reservations). No password, session token, or authentication is required. The system does not verify that the identifier belongs to a real person.
-- Football fields are pre-seeded in the system and cannot be created or deleted through the user-facing interface (admin management is out of scope for the MVP).
-- There is no explicit maximum reservation duration beyond the constraint that the end time must fall on or before 11:00 PM on the same day.
-- The system operates in a single timezone; no timezone conversion or multi-timezone support is required.
-- Concurrent reservation requests for the same slot are possible; the system must handle them correctly (first confirmed wins, second receives an overlap error).
-- Payments and billing are entirely out of scope for this MVP.
-- Notifications (email, SMS, push) are entirely out of scope for this MVP.
-- No-show records are stored but no automated consequence (ban, penalty) is enforced in the MVP.
+**Escenarios de Aceptación**:
+
+1. **Dado** que un usuario tiene una reserva activa y la cancela con más de 2 horas de aviso previo, **Cuando** se confirma la cancelación, **Entonces** el estado de la reserva cambia a cancelada y no se registra ningún no-show.
+2. **Dado** que un usuario cancela una reserva con menos de 2 horas antes de la hora de inicio, **Cuando** se confirma la cancelación, **Entonces** el estado de la reserva cambia a cancelada Y se crea un registro de no-show.
+3. **Dado** que un usuario intenta cancelar una reserva que no le pertenece, **Cuando** se envía la cancelación, **Entonces** el sistema la rechaza con un error apropiado.
+4. **Dado** que un usuario intenta cancelar una reserva que ya está cancelada, **Cuando** se envía la cancelación, **Entonces** el sistema la rechaza con un error apropiado.
+
+---
+
+### Casos Límite
+
+- ¿Qué ocurre cuando dos usuarios intentan reservar la misma cancha y franja horaria simultáneamente? El sistema debe garantizar que solo uno tenga éxito; el otro recibe un error de superposición.
+- ¿Qué ocurre cuando los horarios de inicio y fin de una reserva cruzan la medianoche? El horario operativo termina a las 11:00 PM — ninguna reserva puede cruzar ese límite.
+- ¿Qué ocurre cuando el usuario proporciona un identificador que no tiene reservas existentes? Se devuelve una lista vacía; no se genera ningún error.
+- ¿Qué ocurre cuando un usuario solicita una franja de 30 minutos (por debajo del mínimo de 1 hora)? El sistema debe rechazarla con un error de duración mínima.
+- ¿Qué ocurre cuando un usuario solicita una franja que comienza exactamente 60 minutos desde ahora? Debe ser aceptada (el límite es inclusivo en el aviso previo de 1 hora).
+- ¿Qué ocurre cuando un usuario intenta reservar una cancha que no existe? El sistema debe rechazarlo con un error claro de cancha no encontrada.
+- ¿Qué ocurre cuando un usuario tiene 2 reservas activas pero ambas ya han pasado? Ambas pasan a `completed`; el usuario queda inmediatamente libre para hacer nuevas reservas hasta el límite de 2 activas simultáneamente.
+
+## Requisitos *(obligatorio)*
+
+### Requisitos Funcionales
+
+- **RF-001**: El sistema DEBE mostrar todas las canchas de fútbol sintético disponibles y sus franjas horarias abiertas para una fecha especificada por el usuario, mostrando solo los incrementos de 30 minutos reservables dentro del horario operativo.
+- **RF-002**: El sistema DEBE presentar una pantalla de ingreso de identificador cuando la aplicación se abre por primera vez; el identificador ingresado se retiene para todas las acciones posteriores dentro de la sesión. Todas las operaciones de reserva (crear, ver, cancelar) DEBEN usar este identificador de sesión sin requerir que el usuario lo ingrese nuevamente.
+- **RF-003**: El sistema DEBE hacer cumplir que cada reserva abarque un mínimo de 1 hora y que tanto la hora de inicio como la de fin estén alineadas a incrementos de 30 minutos (p. ej., 10:00, 10:30, 11:00).
+- **RF-004**: El sistema DEBE hacer cumplir el horario operativo: la hora de inicio de la reserva DEBE ser las 6:00 AM o posterior, y la hora de fin DEBE ser las 11:00 PM o anterior.
+- **RF-005**: El sistema DEBE rechazar cualquier solicitud de reserva donde la hora de inicio sea menos de 1 hora desde el momento en que se envía la solicitud.
+- **RF-006**: El sistema DEBE evitar que dos reservas para la misma cancha se superpongan en el tiempo; la segunda solicitud conflictiva DEBE ser rechazada.
+- **RF-007**: El sistema DEBE rechazar una solicitud de reserva si el usuario solicitante ya tiene 2 o más reservas activas. Una reserva está activa solo mientras su hora de fin está en el futuro y no ha sido cancelada. Las reservas cuya hora de fin ha pasado pasan automáticamente a `completed` y NO DEBEN contarse para este límite.
+- **RF-008**: El sistema DEBE mostrar todas las próximas reservas activas para el usuario de la sesión actual — reservas cuya hora de fin está en el futuro y no han sido canceladas. Las reservas completadas y canceladas NO DEBEN aparecer en esta vista.
+- **RF-009**: El sistema DEBE permitir a un usuario cancelar una de sus reservas activas por identificador de reserva.
+- **RF-010**: El sistema DEBE registrar un no-show cuando se envía una cancelación con menos de 2 horas de aviso previo antes de la hora de inicio de la reserva.
+- **RF-011**: El sistema DEBE devolver un mensaje de error claro, específico y legible por humanos para cada violación de regla de dominio, identificando qué regla fue violada.
+- **RF-012**: El sistema DEBE rechazar solicitudes de cancelación para reservas que no pertenecen al identificador de usuario solicitante.
+
+### Entidades Clave
+
+- **Cancha**: Una cancha de fútbol sintético disponible para reserva. Tiene un identificador único y un nombre legible por humanos. Las canchas están preconfiguradas; la creación y eliminación están fuera del alcance.
+- **Reserva**: Una reserva de una cancha específica por un usuario para un rango de tiempo continuo en una fecha determinada. Tiene un identificador único, un identificador de usuario, referencia a la cancha, fecha, hora de inicio, hora de fin y estado (`active` / `completed` / `cancelled`). Transiciones de estado: `active` → `completed` automáticamente cuando pasa la hora de fin; `active` → `cancelled` cuando el usuario la cancela explícitamente. Solo las reservas `active` cuentan para el límite de 2 reservas.
+- **NoShow**: Un registro de que un usuario canceló una reserva tarde. Vinculado a la reserva cancelada original. Contiene el identificador de usuario, referencia a la reserva y la marca de tiempo de la cancelación.
+
+## Criterios de Éxito *(obligatorio)*
+
+### Resultados Medibles
+
+- **CE-001**: Un usuario puede completar exitosamente una reserva válida en 3 pasos o menos (seleccionar cancha + hora, enviar, recibir confirmación).
+- **CE-002**: Cada violación de regla de dominio (superposición, horario operativo, aviso previo, duración, límite de reservas activas) resulta en un mensaje de error legible por humanos y distinto — 0 casos donde una regla es violada silenciosamente o con un error genérico.
+- **CE-003**: La vista de disponibilidad refleja con precisión el estado de reservas en tiempo real — 0 casos donde una franja disponible mostrada está realmente ocupada, o viceversa.
+- **CE-004**: La cancelación con aviso tardío produce de forma confiable un registro de no-show en el 100% de los casos que califican (cancelación < 2 horas antes del inicio).
+- **CE-005**: Un usuario con una reserva activa existente para una cancha no puede crear una segunda reserva superpuesta para esa misma cancha — 0 reservas duplicadas en el sistema en ningún momento.
+
+## Supuestos
+
+- Un usuario ingresa su identificador (p. ej., un nombre o alias) una vez al abrir la aplicación; la interfaz lo retiene durante la sesión y lo usa automáticamente para todas las acciones (crear, ver y cancelar reservas). No se requiere contraseña, token de sesión ni autenticación. El sistema no verifica que el identificador pertenezca a una persona real.
+- Las canchas de fútbol están pre-cargadas en el sistema y no pueden ser creadas ni eliminadas a través de la interfaz de usuario (la administración está fuera del alcance del MVP).
+- No hay una duración máxima explícita de reserva más allá de la restricción de que la hora de fin debe caer a las 11:00 PM o antes del mismo día.
+- El sistema opera en una sola zona horaria; no se requiere conversión ni soporte multi-zona horaria.
+- Las solicitudes de reserva concurrentes para la misma franja son posibles; el sistema debe manejarlas correctamente (el primero en confirmarse gana, el segundo recibe un error de superposición).
+- Los pagos y la facturación están completamente fuera del alcance de este MVP.
+- Las notificaciones (correo electrónico, SMS, push) están completamente fuera del alcance de este MVP.
+- Los registros de no-show se almacenan pero no se aplica ninguna consecuencia automatizada (baneo, penalización) en el MVP.

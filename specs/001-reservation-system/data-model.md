@@ -1,110 +1,110 @@
-# Data Model: Reservation System for Synthetic Football Fields
+# Modelo de Datos: Sistema de Reservas para Canchas de Fútbol Sintético
 
-**Phase 1 output** — entities, value objects, state transitions, and persistence schema.
-
----
-
-## Domain Entities
-
-### Field
-
-Represents a synthetic football field available for reservation.
-
-| Attribute | Type   | Constraints |
-|-----------|--------|-------------|
-| id        | int    | Primary key, auto-increment |
-| name      | string | Non-empty, unique |
-
-Fields are pre-seeded at startup. No lifecycle transitions — fields are permanent
-within the MVP.
+**Salida de Fase 1** — entidades, objetos de valor, transiciones de estado y esquema de persistencia.
 
 ---
 
-### Reservation
+## Entidades de Dominio
 
-Represents a booking of a specific field by a user for a defined time range.
+### Cancha (Field)
 
-| Attribute    | Type     | Constraints |
-|--------------|----------|-------------|
-| id           | UUID     | Primary key, generated on creation |
-| user_id      | string   | Non-empty; self-provided by user |
-| field_id     | int      | Foreign key → Field.id |
-| date         | date     | The calendar date of the reservation |
-| start_time   | time     | Aligns to 30-min boundary; ≥ 06:00 |
-| end_time     | time     | Aligns to 30-min boundary; ≤ 23:00; > start_time + 1h |
-| status       | enum     | `active` · `cancelled` — stored in DB |
-| created_at   | datetime | Set at creation, UTC |
-| cancelled_at | datetime | Nullable; set when cancelled |
+Representa una cancha de fútbol sintético disponible para reserva.
 
-**Computed status — `completed`**: A reservation with `status = active` whose
-`date + end_time` is in the past is treated as `completed` by the application.
-This is NOT stored in the database; it is computed at query time.
+| Atributo | Tipo   | Restricciones |
+|----------|--------|---------------|
+| id       | int    | Clave primaria, auto-incremento |
+| name     | string | No vacío, único |
 
-**Status transitions**:
+Las canchas se pre-cargan al inicio. Sin transiciones de ciclo de vida — las canchas
+son permanentes dentro del MVP.
+
+---
+
+### Reserva (Reservation)
+
+Representa una reserva de una cancha específica por un usuario para un rango de tiempo definido.
+
+| Atributo     | Tipo     | Restricciones |
+|--------------|----------|---------------|
+| id           | UUID     | Clave primaria, generado en creación |
+| user_id      | string   | No vacío; proporcionado por el usuario |
+| field_id     | int      | Clave foránea → Field.id |
+| date         | date     | La fecha calendario de la reserva |
+| start_time   | time     | Alineado al límite de 30 min; ≥ 06:00 |
+| end_time     | time     | Alineado al límite de 30 min; ≤ 23:00; > start_time + 1h |
+| status       | enum     | `active` · `cancelled` — almacenado en BD |
+| created_at   | datetime | Establecido en creación, UTC |
+| cancelled_at | datetime | Nullable; establecido cuando se cancela |
+
+**Estado computado — `completed`**: Una reserva con `status = active` cuyo
+`date + end_time` está en el pasado es tratada como `completed` por la aplicación.
+Esto NO se almacena en la base de datos; se computa en tiempo de consulta.
+
+**Transiciones de estado**:
 
 ```
-created ──► active ──► cancelled   (explicit user action; may trigger no-show)
-                  └──► [completed]  (computed — end_datetime < now())
+creado ──► activo ──► cancelado   (acción explícita del usuario; puede generar no-show)
+                 └──► [completado]  (computado — end_datetime < now())
 ```
 
-**Active definition** (used for the 2-reservation limit):
-A reservation is active if `status = 'active'` AND `(date, end_time)` is in the future.
-Cancelled reservations and past reservations never count toward the limit.
+**Definición de activo** (usada para el límite de 2 reservas):
+Una reserva está activa si `status = 'active'` Y `(date, end_time)` está en el futuro.
+Las reservas canceladas y pasadas nunca cuentan para el límite.
 
 ---
 
 ### NoShow
 
-Records that a user cancelled a reservation with less than 2 hours of advance notice.
+Registra que un usuario canceló una reserva con menos de 2 horas de aviso previo.
 
-| Attribute       | Type     | Constraints |
-|-----------------|----------|-------------|
-| id              | int      | Primary key, auto-increment |
-| reservation_id  | UUID     | Foreign key → Reservation.id |
-| user_id         | string   | Copied from the cancelled reservation |
-| cancelled_at    | datetime | Timestamp of the cancellation action, UTC |
+| Atributo        | Tipo     | Restricciones |
+|-----------------|----------|---------------|
+| id              | int      | Clave primaria, auto-incremento |
+| reservation_id  | UUID     | Clave foránea → Reservation.id |
+| user_id         | string   | Copiado de la reserva cancelada |
+| cancelled_at    | datetime | Marca de tiempo de la cancelación, UTC |
 
-A NoShow record is created alongside the cancellation when:
+Un registro NoShow se crea junto con la cancelación cuando:
 `reservation.start_datetime - cancellation_time < 2 hours`
 
-No automated consequence is enforced in the MVP (no bans or penalties).
+No se aplica ninguna consecuencia automatizada en el MVP (sin baneos ni penalizaciones).
 
 ---
 
-## Value Object: TimeSlot
+## Objeto de Valor: TimeSlot
 
-Encapsulates the date + time range of a reservation and enforces all booking
-constraints as pure, framework-agnostic logic.
+Encapsula el rango de fecha + hora de una reserva y aplica todas las restricciones
+de reserva como lógica pura, independiente del framework.
 
-| Attribute  | Type | Description |
+| Atributo   | Tipo | Descripción |
 |------------|------|-------------|
-| date       | date | Calendar date |
-| start_time | time | Start of the booking window |
-| end_time   | time | End of the booking window |
+| date       | date | Fecha calendario |
+| start_time | time | Inicio de la ventana de reserva |
+| end_time   | time | Fin de la ventana de reserva |
 
-**Validation rules** (all enforced on construction):
+**Reglas de validación** (todas aplicadas en construcción):
 
-| Rule | Condition |
-|------|-----------|
-| Minimum duration | `end_time - start_time >= 1 hour` |
-| 30-minute alignment | `start_time.minute in {0, 30}` AND `end_time.minute in {0, 30}` |
-| Operating hours — start | `start_time >= 06:00` |
-| Operating hours — end | `end_time <= 23:00` |
-| No midnight crossing | `end_time > start_time` (same calendar day) |
+| Regla | Condición |
+|-------|-----------|
+| Duración mínima | `end_time - start_time >= 1 hora` |
+| Alineación de 30 minutos | `start_time.minute in {0, 30}` Y `end_time.minute in {0, 30}` |
+| Horario operativo — inicio | `start_time >= 06:00` |
+| Horario operativo — fin | `end_time <= 23:00` |
+| Sin cruce de medianoche | `end_time > start_time` (mismo día calendario) |
 
-**Behaviors**:
+**Comportamientos**:
 
-| Method | Returns | Description |
+| Método | Retorna | Descripción |
 |--------|---------|-------------|
-| `is_bookable(now: datetime)` | bool | `True` if `date + start_time - now >= 1 hour` |
-| `overlaps_with(other: TimeSlot)` | bool | `True` if the two slots share any time on the same date and field |
+| `is_bookable(now: datetime)` | bool | `True` si `date + start_time - now >= 1 hora` |
+| `overlaps_with(other: TimeSlot)` | bool | `True` si las dos franjas comparten algún tiempo en la misma fecha y cancha |
 
 ---
 
-## Persistence Schema (SQLite)
+## Esquema de Persistencia (SQLite)
 
-The ORM models in `infrastructure/models/` map to these tables. They are separate
-Python classes from the domain entities — no shared base class or inheritance.
+Los modelos ORM en `infrastructure/models/` mapean a estas tablas. Son clases Python
+separadas de las entidades de dominio — sin clase base compartida ni herencia.
 
 ```sql
 CREATE TABLE fields (
@@ -113,32 +113,32 @@ CREATE TABLE fields (
 );
 
 CREATE TABLE reservations (
-    id           TEXT     PRIMARY KEY,          -- UUID as text
+    id           TEXT     PRIMARY KEY,          -- UUID como texto
     user_id      TEXT     NOT NULL,
     field_id     INTEGER  NOT NULL REFERENCES fields(id),
-    date         TEXT     NOT NULL,             -- ISO-8601 date: YYYY-MM-DD
+    date         TEXT     NOT NULL,             -- Fecha ISO-8601: YYYY-MM-DD
     start_time   TEXT     NOT NULL,             -- HH:MM (24h)
     end_time     TEXT     NOT NULL,             -- HH:MM (24h)
     status       TEXT     NOT NULL DEFAULT 'active',  -- 'active' | 'cancelled'
-    created_at   TEXT     NOT NULL,             -- ISO-8601 datetime UTC
-    cancelled_at TEXT     NULL                  -- ISO-8601 datetime UTC
+    created_at   TEXT     NOT NULL,             -- Datetime ISO-8601 UTC
+    cancelled_at TEXT     NULL                  -- Datetime ISO-8601 UTC
 );
 
 CREATE TABLE no_shows (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     reservation_id  TEXT    NOT NULL REFERENCES reservations(id),
     user_id         TEXT    NOT NULL,
-    cancelled_at    TEXT    NOT NULL             -- ISO-8601 datetime UTC
+    cancelled_at    TEXT    NOT NULL             -- Datetime ISO-8601 UTC
 );
 ```
 
-**Index for overlap checking** (created at startup):
+**Índice para verificación de superposición** (creado al inicio):
 ```sql
 CREATE INDEX idx_reservations_field_date
     ON reservations(field_id, date, status);
 ```
 
-**Query for active reservation count** (used by max-2-limit rule):
+**Consulta para conteo de reservas activas** (usada por la regla del límite máximo de 2):
 ```sql
 SELECT COUNT(*) FROM reservations
 WHERE user_id = :user_id
@@ -149,14 +149,14 @@ WHERE user_id = :user_id
 
 ---
 
-## Mapper: Domain Entity ↔ ORM Model
+## Mapper: Entidad de Dominio ↔ Modelo ORM
 
-Each repository implementation maps between ORM models and domain entities. The domain
-never imports SQLAlchemy. The infrastructure never exposes SQLAlchemy models outside
-its own package.
+Cada implementación de repositorio mapea entre modelos ORM y entidades de dominio. El dominio
+nunca importa SQLAlchemy. La infraestructura nunca expone modelos SQLAlchemy fuera de
+su propio paquete.
 
-| Domain Entity | ORM Model | Mapper Location |
-|---------------|-----------|-----------------|
+| Entidad de Dominio | Modelo ORM | Ubicación del Mapper |
+|--------------------|------------|----------------------|
 | `Field` | `FieldModel` | `sqlite_field_repository.py` |
 | `Reservation` | `ReservationModel` | `sqlite_reservation_repository.py` |
 | `NoShow` | `NoShowModel` | `sqlite_reservation_repository.py` |

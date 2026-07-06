@@ -1,19 +1,19 @@
-# Quickstart: Reservation System Validation Guide
+# Inicio Rápido: Guía de Validación del Sistema de Reservas
 
-Use this guide to validate the system works end-to-end after implementation.
-It covers prerequisites, startup, and scenario-by-scenario verification.
-
----
-
-## Prerequisites
-
-- Python 3.11+ installed
-- Node.js 20+ installed
-- Repository root: `c:\Users\jmgonzaleh\canchas-sinteticas\`
+Usa esta guía para validar que el sistema funciona de extremo a extremo después de la implementación.
+Cubre los prerequisitos, el inicio y la verificación escenario por escenario.
 
 ---
 
-## Backend Setup & Start
+## Prerequisitos
+
+- Python 3.11+ instalado
+- Node.js 20+ instalado
+- Raíz del repositorio: `c:\Users\jmgonzaleh\canchas-sinteticas\`
+
+---
+
+## Configuración e Inicio del Backend
 
 ```bash
 cd backend
@@ -23,29 +23,29 @@ pip install -r requirements.txt
 uvicorn api.main:app --reload --port 8000
 ```
 
-On startup the backend will:
-1. Create `reservations.db` (SQLite file) if it does not exist.
-2. Run table creation.
-3. Seed 3 fields: **Cancha A**, **Cancha B**, **Cancha C** (idempotent).
+Al iniciar, el backend:
+1. Crea `reservations.db` (archivo SQLite) si no existe.
+2. Ejecuta la creación de tablas.
+3. Carga 3 canchas: **Cancha A**, **Cancha B**, **Cancha C** (idempotente).
 
-Verify startup: `GET http://localhost:8000/api/fields/availability?date=2026-07-01`
-should return 3 fields with slots, HTTP 200.
+Verificar inicio: `GET http://localhost:8000/api/fields/availability?date=2026-07-01`
+debe retornar 3 canchas con franjas, HTTP 200.
 
 ---
 
-## Run Backend Tests
+## Ejecutar Pruebas del Backend
 
 ```bash
 cd backend
 pytest tests/ -v --cov=. --cov-report=term-missing
 ```
 
-All tests must pass before proceeding to frontend validation.
-Domain unit tests MUST run without any database connection.
+Todas las pruebas deben pasar antes de proceder a la validación del frontend.
+Las pruebas unitarias de dominio DEBEN ejecutarse sin ninguna conexión a base de datos.
 
 ---
 
-## Frontend Setup & Start
+## Configuración e Inicio del Frontend
 
 ```bash
 cd frontend
@@ -53,154 +53,154 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:5173` in a browser.
+Abrir `http://localhost:5173` en un navegador.
 
 ---
 
-## Scenario Validation
+## Validación de Escenarios
 
-### Scenario 1 — Identifier Entry (US1 prerequisite)
+### Escenario 1 — Ingreso de Identificador (prerequisito US1)
 
-1. Open `http://localhost:5173`.
-2. The app shows an identifier entry screen.
-3. Enter `"maria"` and confirm.
-4. The main view opens. The identifier is not requested again during the session.
+1. Abrir `http://localhost:5173`.
+2. La aplicación muestra una pantalla de ingreso de identificador.
+3. Ingresar `"maria"` y confirmar.
+4. Se abre la vista principal. El identificador no se vuelve a solicitar durante la sesión.
 
-**Expected**: The identifier gate is shown once; the main view is accessible after entry.
+**Esperado**: La puerta de identificador se muestra una vez; la vista principal es accesible después del ingreso.
 
 ---
 
-### Scenario 2 — View Field Availability (User Story 1)
+### Escenario 2 — Ver Disponibilidad de Canchas (Historia de Usuario 1)
 
-1. On the main view, select today's date (or tomorrow).
-2. The system displays Cancha A, Cancha B, Cancha C with their available 30-min slots.
+1. En la vista principal, seleccionar la fecha de hoy (o mañana).
+2. El sistema muestra Cancha A, Cancha B, Cancha C con sus franjas de 30 min disponibles.
 
-**Expected**: Each field shows slots from 06:00 to 23:00 (minus any already booked,
-minus slots within 1 hour of now).
+**Esperado**: Cada cancha muestra franjas de 06:00 a 23:00 (menos las ya reservadas,
+menos las franjas dentro de 1 hora desde ahora).
 
-API equivalent:
+Equivalente API:
 ```
-GET /api/fields/availability?date=<today>
-→ 200, 3 fields each with available_slots array
+GET /api/fields/availability?date=<hoy>
+→ 200, 3 canchas cada una con array available_slots
 ```
 
 ---
 
-### Scenario 3 — Create a Valid Reservation (User Story 2)
+### Escenario 3 — Crear una Reserva Válida (Historia de Usuario 2)
 
-1. Select **Cancha A**, a date at least 2 hours in the future, 10:00–12:00.
-2. Submit the reservation form.
-3. Confirmation is shown with a reservation ID.
+1. Seleccionar **Cancha A**, una fecha al menos 2 horas en el futuro, 10:00–12:00.
+2. Enviar el formulario de reserva.
+3. Se muestra la confirmación con un ID de reserva.
 
-**Expected**: HTTP 201, reservation appears in "My Reservations" list.
+**Esperado**: HTTP 201, la reserva aparece en la lista "Mis Reservas".
 
-API equivalent:
+Equivalente API:
 ```
 POST /api/reservations
-Body: {"user_id":"maria","field_id":1,"date":"<future>","start_time":"10:00","end_time":"12:00"}
-→ 201, body contains reservation_id and status: "active"
+Body: {"user_id":"maria","field_id":1,"date":"<futuro>","start_time":"10:00","end_time":"12:00"}
+→ 201, el cuerpo contiene reservation_id y status: "active"
 ```
 
 ---
 
-### Scenario 4 — Domain Rule: Overlap (User Story 2, error path)
+### Escenario 4 — Regla de Dominio: Superposición (Historia de Usuario 2, camino de error)
 
-1. Attempt to reserve **Cancha A** 10:00–11:00 on the same date as Scenario 3.
+1. Intentar reservar **Cancha A** de 10:00 a 11:00 en la misma fecha que el Escenario 3.
 
-**Expected**: Error message "This time slot overlaps with an existing reservation."
+**Esperado**: Mensaje de error "Esta franja horaria se superpone con una reserva existente."
 API → 422, `error_type: "OVERLAP"`.
 
 ---
 
-### Scenario 5 — Domain Rule: Advance Notice (User Story 2, error path)
+### Escenario 5 — Regla de Dominio: Aviso Previo (Historia de Usuario 2, camino de error)
 
-1. Try to reserve any field for a time slot that starts in less than 60 minutes.
+1. Intentar reservar cualquier cancha para una franja que comienza en menos de 60 minutos.
 
-**Expected**: Error message about 1-hour advance notice requirement.
+**Esperado**: Mensaje de error sobre el requisito de aviso previo de 1 hora.
 API → 422, `error_type: "ADVANCE_NOTICE"`.
 
 ---
 
-### Scenario 6 — Domain Rule: Duration / Block Alignment (User Story 2, error path)
+### Escenario 6 — Regla de Dominio: Duración / Alineación de Bloques (Historia de Usuario 2, camino de error)
 
-1. Try to reserve 10:00–10:30 (only 30 minutes, below the 1-hour minimum).
+1. Intentar reservar de 10:00 a 10:30 (solo 30 minutos, por debajo del mínimo de 1 hora).
 
-**Expected**: Error message about minimum duration.
+**Esperado**: Mensaje de error sobre duración mínima.
 API → 422, `error_type: "DURATION_INVALID"`.
 
 ---
 
-### Scenario 7 — Domain Rule: Active Reservation Limit (User Story 2, error path)
+### Escenario 7 — Regla de Dominio: Límite de Reservas Activas (Historia de Usuario 2, camino de error)
 
-1. As `"maria"`, create a second valid reservation on a different field or time.
-2. Attempt to create a third reservation.
+1. Como `"maria"`, crear una segunda reserva válida en otra cancha u horario.
+2. Intentar crear una tercera reserva.
 
-**Expected**: Error message about the 2-reservation active limit.
+**Esperado**: Mensaje de error sobre el límite activo de 2 reservas.
 API → 422, `error_type: "ACTIVE_LIMIT"`.
 
 ---
 
-### Scenario 8 — View My Reservations (User Story 3)
+### Escenario 8 — Ver Mis Reservas (Historia de Usuario 3)
 
-1. After creating reservations in Scenario 3, navigate to "My Reservations".
+1. Después de crear reservas en el Escenario 3, navegar a "Mis Reservas".
 
-**Expected**: List shows active future reservations for `"maria"`.
-API → `GET /api/reservations?user_id=maria` → 200, array with reservation items.
-
----
-
-### Scenario 9 — Cancel with Sufficient Notice (User Story 4)
-
-1. Cancel the reservation from Scenario 3 (reservation is hours in the future).
-
-**Expected**: Status changes to `cancelled`. `no_show: false`.
-API → `DELETE /api/reservations/<id>` with `{"user_id":"maria"}` → 200.
+**Esperado**: La lista muestra las reservas futuras activas de `"maria"`.
+API → `GET /api/reservations?user_id=maria` → 200, array con elementos de reserva.
 
 ---
 
-### Scenario 10 — Cancel with Late Notice / No-Show (User Story 4)
+### Escenario 9 — Cancelar con Suficiente Aviso (Historia de Usuario 4)
 
-Requires a reservation with start time less than 2 hours away.
+1. Cancelar la reserva del Escenario 3 (la reserva está horas en el futuro).
 
-1. Create a reservation starting ~90 minutes from now.
-2. Immediately cancel it.
+**Esperado**: El estado cambia a `cancelled`. `no_show: false`.
+API → `DELETE /api/reservations/<id>` con `{"user_id":"maria"}` → 200.
 
-**Expected**: Status `cancelled`, `no_show: true`.
+---
+
+### Escenario 10 — Cancelar con Poco Aviso / No-Show (Historia de Usuario 4)
+
+Requiere una reserva con hora de inicio a menos de 2 horas.
+
+1. Crear una reserva que empiece ~90 minutos desde ahora.
+2. Cancelarla inmediatamente.
+
+**Esperado**: Estado `cancelled`, `no_show: true`.
 API → 200, `{"no_show": true}`.
 
 ---
 
-### Scenario 11 — Unauthorized Cancellation (User Story 4, error path)
+### Escenario 11 — Cancelación No Autorizada (Historia de Usuario 4, camino de error)
 
-1. As `"pedro"`, attempt to cancel a reservation that belongs to `"maria"`.
+1. Como `"pedro"`, intentar cancelar una reserva que pertenece a `"maria"`.
 
-**Expected**: 403, `error_type: "NOT_AUTHORIZED"`.
-
----
-
-### Scenario 12 — Empty State (User Story 3, edge case)
-
-1. Use a user identifier that has never made a reservation (e.g., `"newuser"`).
-2. View "My Reservations".
-
-**Expected**: Empty list displayed with a clear message. No error.
-API → `GET /api/reservations?user_id=newuser` → 200, `[]`.
+**Esperado**: 403, `error_type: "NOT_AUTHORIZED"`.
 
 ---
 
-## Completion Criteria
+### Escenario 12 — Estado Vacío (Historia de Usuario 3, caso límite)
 
-All 12 scenarios must pass before the feature is considered done:
+1. Usar un identificador de usuario que nunca ha hecho una reserva (p. ej., `"nuevousuario"`).
+2. Ver "Mis Reservas".
 
-- [ ] Scenario 1: Identifier gate works
-- [ ] Scenario 2: Availability view returns correct slots
-- [ ] Scenario 3: Valid reservation created
-- [ ] Scenario 4: Overlap rejected
-- [ ] Scenario 5: Advance notice rejected
-- [ ] Scenario 6: Duration/block rejected
-- [ ] Scenario 7: Active limit rejected
-- [ ] Scenario 8: My reservations list works
-- [ ] Scenario 9: Clean cancellation works
-- [ ] Scenario 10: Late cancellation creates no-show
-- [ ] Scenario 11: Unauthorized cancellation rejected
-- [ ] Scenario 12: Empty state handled
+**Esperado**: Se muestra una lista vacía con un mensaje claro. Sin error.
+API → `GET /api/reservations?user_id=nuevousuario` → 200, `[]`.
+
+---
+
+## Criterios de Finalización
+
+Los 12 escenarios deben pasar antes de que la funcionalidad se considere completa:
+
+- [ ] Escenario 1: La puerta de identificador funciona
+- [ ] Escenario 2: La vista de disponibilidad retorna las franjas correctas
+- [ ] Escenario 3: Reserva válida creada
+- [ ] Escenario 4: Superposición rechazada
+- [ ] Escenario 5: Aviso previo rechazado
+- [ ] Escenario 6: Duración/bloque rechazado
+- [ ] Escenario 7: Límite activo rechazado
+- [ ] Escenario 8: La lista de mis reservas funciona
+- [ ] Escenario 9: Cancelación limpia funciona
+- [ ] Escenario 10: Cancelación tardía crea no-show
+- [ ] Escenario 11: Cancelación no autorizada rechazada
+- [ ] Escenario 12: Estado vacío manejado

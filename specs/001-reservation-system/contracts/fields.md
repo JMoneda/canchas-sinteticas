@@ -1,24 +1,24 @@
-# Contract: Fields API
+# Contrato: API de Canchas
 
-Base path: `/api/fields`
+Ruta base: `/api/fields`
 
 ---
 
 ## GET /api/fields/availability
 
-Returns all fields with their available 30-minute time slots for the requested date.
-Available slots exclude time ranges already occupied by active reservations and
-time ranges that cannot be booked due to the 1-hour advance notice rule.
+Retorna todas las canchas con sus franjas horarias de 30 minutos disponibles para la fecha solicitada.
+Las franjas disponibles excluyen los rangos de tiempo ya ocupados por reservas activas y los rangos
+de tiempo que no pueden reservarse debido a la regla de aviso previo de 1 hora.
 
-### Request
+### Solicitud
 
-| Parameter | Location | Type   | Required | Description |
-|-----------|----------|--------|----------|-------------|
-| `date`    | query    | string | Yes      | Target date in `YYYY-MM-DD` format |
+| Parámetro | Ubicación | Tipo   | Requerido | Descripción |
+|-----------|-----------|--------|-----------|-------------|
+| `date`    | query     | string | Sí        | Fecha objetivo en formato `YYYY-MM-DD` |
 
-### Responses
+### Respuestas
 
-**200 OK** — Availability returned successfully.
+**200 OK** — Disponibilidad retornada exitosamente.
 
 ```json
 [
@@ -39,22 +39,22 @@ time ranges that cannot be booked due to the 1-hour advance notice rule.
 ]
 ```
 
-- `available_slots` is an array of consecutive 30-minute blocks that are free.
-- An empty `available_slots` array means the field is fully booked (or all remaining
-  slots fall within the 1-hour advance notice window).
+- `available_slots` es un array de bloques consecutivos de 30 minutos que están libres.
+- Un array `available_slots` vacío significa que la cancha está completamente reservada (o que todas
+  las franjas restantes caen dentro de la ventana de aviso previo de 1 hora).
 
-**400 Bad Request** — Date is in the past or malformed.
+**400 Bad Request** — La fecha está en el pasado o tiene formato incorrecto.
 
 ```json
 {
   "error_type": "INVALID_DATE",
-  "message": "The requested date is in the past. Please choose today or a future date."
+  "message": "La fecha solicitada está en el pasado. Por favor elige hoy o una fecha futura."
 }
 ```
 
-### Notes
+### Notas
 
-- Time strings use 24-hour format: `"HH:MM"` (e.g., `"06:00"`, `"23:00"`).
-- The last possible slot starts at `22:30` (ends at `23:00`).
-- Slots are returned in ascending order.
-- Slots already started or within the 1-hour advance notice window are excluded.
+- Las cadenas de tiempo usan formato de 24 horas: `"HH:MM"` (p. ej., `"06:00"`, `"23:00"`).
+- La última franja posible comienza a las `22:30` (termina a las `23:00`).
+- Las franjas se retornan en orden ascendente.
+- Las franjas ya iniciadas o dentro de la ventana de aviso previo de 1 hora están excluidas.

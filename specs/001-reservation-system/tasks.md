@@ -1,218 +1,217 @@
 ﻿---
-description: "Task list for Reservation System â€” Clean Architecture, layer-by-layer build order"
+description: "Lista de tareas para el Sistema de Reservas — Arquitectura Limpia, orden de construcción capa por capa"
 ---
 
-# Tasks: Reservation System for Synthetic Football Fields
+# Tareas: Sistema de Reservas para Canchas de Fútbol Sintético
 
-**Input**: Design documents from `/specs/001-reservation-system/`
+**Entrada**: Documentos de diseño de `/specs/001-reservation-system/`
 
-**Prerequisites**: plan.md âœ… Â· spec.md âœ… Â· research.md âœ… Â· data-model.md âœ… Â· contracts/ âœ…
+**Prerequisitos**: plan.md ✅ · spec.md ✅ · research.md ✅ · data-model.md ✅ · contracts/ ✅
 
-**Build Order**: Domain â†’ Application â†’ Infrastructure â†’ API (per user story) â†’ Frontend (per user story)
+**Orden de Construcción**: Dominio → Aplicación → Infraestructura → API (por historia de usuario) → Frontend (por historia de usuario)
 
-**Constitution Rule**: Tests for each domain rule MUST be written and confirmed FAILING before the rule is implemented.
+**Regla de Constitución**: Las pruebas para cada regla de dominio DEBEN ser escritas y confirmadas como FALLIDAS antes de implementar la regla.
 
-## Format: `[ID] [P?] [Story?] Description`
+## Formato: `[ID] [P?] [Historia?] Descripción`
 
-- **[P]**: Can run in parallel (different files, no cross-task dependency)
-- **[Story]**: Maps task to a user story (US1â€“US4)
-- Include exact file paths in every task description
-
----
-
-## Phase 1: Setup
-
-**Purpose**: Project initialization â€” no code, no tests yet.
-
-- [x] T001 Create full directory tree per plan.md: `backend/{domain/{entities,value_objects,repositories},application/use_cases,infrastructure/{models,repositories},api/routes,tests/{unit/domain,integration}}/` and `frontend/src/{components,services}/`
-- [x] T002 [P] Initialize backend Python project: create `backend/requirements.txt` (fastapi, uvicorn[standard], sqlalchemy, pytest, httpx, pytest-cov) and `backend/pyproject.toml` with `[tool.pytest.ini_options] testpaths = ["tests"]`
-- [x] T003 [P] Initialize frontend: create `frontend/package.json` (react 18, react-dom, vite), `frontend/vite.config.js` (port 5173), `frontend/index.html`, and `frontend/src/App.jsx` as an empty placeholder
+- **[P]**: Puede ejecutarse en paralelo (archivos diferentes, sin dependencia entre tareas)
+- **[Historia]**: Mapea la tarea a una historia de usuario (HU1–HU4)
+- Incluir rutas de archivo exactas en cada descripción de tarea
 
 ---
 
-## Phase 2: Foundational â€” Domain Layer
+## Fase 1: Configuración
 
-**Purpose**: Pure domain objects, repository interfaces, and all business rules with unit tests. No database, no framework.
+**Propósito**: Inicialización del proyecto — sin código, sin pruebas aún.
 
-**âš ï¸ CRITICAL**: All phases from 3 onwards depend on this phase being complete and all unit tests passing.
-
-- [x] T004 Create `backend/domain/exceptions.py`: define `DomainError(Exception)` base class and 9 typed subclasses â€” `OverlapError`, `DurationError`, `InvalidBlockError`, `OperatingHoursError`, `AdvanceNoticeError`, `ActiveLimitError`, `FieldNotFoundError`, `NotAuthorizedError`, `AlreadyCancelledError` â€” each with a default human-readable `message` string
-- [x] T005 [P] Create `backend/domain/entities/field.py`: `Field` dataclass with `id: int` and `name: str`; add `backend/domain/entities/__init__.py`
-- [x] T006 [P] Create `backend/domain/entities/reservation.py`: `Reservation` dataclass with `id: str` (UUID), `user_id: str`, `field_id: int`, `date: date`, `start_time: time`, `end_time: time`, `status: str` (literal `'active'`/`'cancelled'`), `created_at: datetime`, `cancelled_at: datetime | None`; add property `start_datetime` and `end_datetime` combining date + time
-- [x] T007 [P] Create `backend/domain/repositories/field_repository.py`: abstract `FieldRepository(ABC)` with method `get_all() -> list[Field]`; add `__init__.py`
-- [x] T008 [P] Create `backend/domain/repositories/reservation_repository.py`: abstract `ReservationRepository(ABC)` with methods: `save(r: Reservation) -> Reservation`, `get_by_id(id: str) -> Reservation | None`, `count_active_by_user(user_id: str, now: datetime) -> int`, `get_active_by_field_and_date(field_id: int, date: date) -> list[Reservation]`, `get_active_by_user(user_id: str, now: datetime) -> list[Reservation]`, `cancel(id: str, cancelled_at: datetime) -> None`, `add_no_show(reservation_id: str, user_id: str, cancelled_at: datetime) -> None`
-- [x] T009 Create `backend/domain/value_objects/time_slot.py`: `TimeSlot` dataclass with `date: date`, `start_time: time`, `end_time: time`; implement `__post_init__` that raises `DurationError` if duration < 1 hour and `InvalidBlockError` if start or end minute not in `{0, 30}`; write unit tests in `backend/tests/unit/domain/test_time_slot.py` â€” **confirm tests FAIL before adding logic, then pass after** (covers: 30-min slot rejected, 1h slot accepted, 1.5h accepted, misaligned times rejected)
-- [x] T010 Add operating hours validation to `TimeSlot.__post_init__` in `backend/domain/value_objects/time_slot.py`: raise `OperatingHoursError` if `start_time < time(6, 0)` or `end_time > time(23, 0)`; add unit tests to `backend/tests/unit/domain/test_time_slot.py` (covers: 05:30â€“06:30 rejected, 22:00â€“23:30 rejected, 06:00â€“07:00 accepted, 22:00â€“23:00 accepted)
-- [x] T011 Add `is_bookable(now: datetime) -> bool` to `TimeSlot` in `backend/domain/value_objects/time_slot.py`: returns `True` if `self.start_datetime - now >= timedelta(hours=1)`; add unit tests covering exactly 60 min (accepted), 59 min (rejected), and past slots (rejected)
-- [x] T012 Add `overlaps_with(other: "TimeSlot") -> bool` to `TimeSlot`: returns `True` only if `self.date == other.date` and the time ranges share any period (not merely adjacent); add unit tests covering: same-date overlap (True), same-date adjacent slots (False), same-date non-overlapping (False), different dates (False)
-
-**Checkpoint**: Run `pytest backend/tests/unit/` â€” all tests must pass before Phase 3.
+- [x] T001 Crear el árbol completo de directorios según plan.md: `backend/{domain/{entities,value_objects,repositories},application/use_cases,infrastructure/{models,repositories},api/routes,tests/{unit/domain,integration}}/` y `frontend/src/{components,services}/`
+- [x] T002 [P] Inicializar proyecto Python backend: crear `backend/requirements.txt` (fastapi, uvicorn[standard], sqlalchemy, pytest, httpx, pytest-cov) y `backend/pyproject.toml` con `[tool.pytest.ini_options] testpaths = ["tests"]`
+- [x] T003 [P] Inicializar frontend: crear `frontend/package.json` (react 18, react-dom, vite), `frontend/vite.config.js` (puerto 5173), `frontend/index.html` y `frontend/src/App.jsx` como placeholder vacío
 
 ---
 
-## Phase 3: Foundational â€” Application Layer
+## Fase 2: Fundacional — Capa de Dominio
 
-**Purpose**: Use cases orchestrate domain rules via injected repository fakes. No SQLite, no FastAPI.
+**Propósito**: Objetos de dominio puros, interfaces de repositorio y todas las reglas de negocio con pruebas unitarias. Sin base de datos, sin framework.
 
-**âš ï¸ CRITICAL**: All API and frontend phases depend on this phase being complete.
+**⚠️ CRÍTICO**: Todas las fases a partir de la 3 dependen de que esta fase esté completa y todas las pruebas unitarias pasen.
 
-- [x] T013 [P] Create `backend/application/dtos.py`: define dataclasses `CreateReservationInput` (user_id, field_id, date, start_time, end_time), `ReservationOutput` (reservation_id, user_id, field_id, field_name, date, start_time, end_time, status), `SlotOutput` (start_time, end_time), `FieldAvailabilityOutput` (field_id, field_name, available_slots), `CancelOutput` (reservation_id, status, no_show: bool); add `backend/application/__init__.py` and `backend/application/use_cases/__init__.py`
-- [x] T014 Create `backend/application/use_cases/list_available_slots.py`: `ListAvailableSlots` use case takes `FieldRepository` + `ReservationRepository`; method `execute(date: date, now: datetime) -> list[FieldAvailabilityOutput]` generates all 30-min slots from 06:00â€“23:00, removes occupied ranges (from active reservations), removes slots not bookable (is_bookable fails); write unit tests in `backend/tests/unit/use_cases/test_list_available_slots.py` using inline fake repository classes (covers: no reservations â†’ full slot list; occupied slot â†’ removed from list; slot within 1h of now â†’ removed)
-- [x] T015 Create `backend/application/use_cases/create_reservation.py`: `CreateReservation` use case; `execute(input: CreateReservationInput, now: datetime) -> ReservationOutput`; steps: (1) get field or raise `FieldNotFoundError`, (2) construct `TimeSlot` (raises duration/block/hours errors), (3) check `is_bookable` or raise `AdvanceNoticeError`, (4) `count_active_by_user` â€” raise `ActiveLimitError` if â‰¥ 2, (5) `get_active_by_field_and_date` + `overlaps_with` check â€” raise `OverlapError` if any overlap, (6) save and return; write unit tests in `backend/tests/unit/use_cases/test_create_reservation.py` covering all 6 rule violations (one test per rule) + happy path
-- [x] T016 Create `backend/application/use_cases/list_reservations.py`: `ListReservations` use case; `execute(user_id: str, now: datetime) -> list[ReservationOutput]` calls `get_active_by_user` (future active reservations only); write unit tests in `backend/tests/unit/use_cases/test_list_reservations.py` (covers: returns only future active, excludes past, returns empty list for unknown user)
-- [x] T017 Create `backend/application/use_cases/cancel_reservation.py`: `CancelReservation` use case; `execute(reservation_id: str, user_id: str, now: datetime) -> CancelOutput`; steps: (1) get by id or raise `NotFoundError`, (2) check `r.user_id == user_id` or raise `NotAuthorizedError`, (3) check `r.status != 'cancelled'` or raise `AlreadyCancelledError`, (4) determine no_show = `r.start_datetime - now < timedelta(hours=2)`, (5) cancel, (6) if no_show add no_show record; write unit tests in `backend/tests/unit/use_cases/test_cancel_reservation.py` (covers: clean cancel, late cancel â†’ no_show=True, unauthorized, already cancelled, not found)
+- [x] T004 Crear `backend/domain/exceptions.py`: definir clase base `DomainError(Exception)` y 9 subclases tipadas — `OverlapError`, `DurationError`, `InvalidBlockError`, `OperatingHoursError`, `AdvanceNoticeError`, `ActiveLimitError`, `FieldNotFoundError`, `NotAuthorizedError`, `AlreadyCancelledError` — cada una con una cadena `message` legible por humanos por defecto
+- [x] T005 [P] Crear `backend/domain/entities/field.py`: dataclass `Field` con `id: int` y `name: str`; agregar `backend/domain/entities/__init__.py`
+- [x] T006 [P] Crear `backend/domain/entities/reservation.py`: dataclass `Reservation` con `id: str` (UUID), `user_id: str`, `field_id: int`, `date: date`, `start_time: time`, `end_time: time`, `status: str` (literal `'active'`/`'cancelled'`), `created_at: datetime`, `cancelled_at: datetime | None`; agregar propiedades `start_datetime` y `end_datetime` combinando date + time
+- [x] T007 [P] Crear `backend/domain/repositories/field_repository.py`: `FieldRepository(ABC)` abstracto con método `get_all() -> list[Field]`; agregar `__init__.py`
+- [x] T008 [P] Crear `backend/domain/repositories/reservation_repository.py`: `ReservationRepository(ABC)` abstracto con métodos: `save(r: Reservation) -> Reservation`, `get_by_id(id: str) -> Reservation | None`, `count_active_by_user(user_id: str, now: datetime) -> int`, `get_active_by_field_and_date(field_id: int, date: date) -> list[Reservation]`, `get_active_by_user(user_id: str, now: datetime) -> list[Reservation]`, `cancel(id: str, cancelled_at: datetime) -> None`, `add_no_show(reservation_id: str, user_id: str, cancelled_at: datetime) -> None`
+- [x] T009 Crear `backend/domain/value_objects/time_slot.py`: dataclass `TimeSlot` con `date: date`, `start_time: time`, `end_time: time`; implementar `__post_init__` que lanza `DurationError` si duración < 1 hora e `InvalidBlockError` si el minuto de inicio o fin no está en `{0, 30}`; escribir pruebas unitarias en `backend/tests/unit/domain/test_time_slot.py` — **confirmar que las pruebas FALLAN antes de agregar la lógica, luego pasan después** (cubre: franja de 30 min rechazada, franja de 1h aceptada, 1.5h aceptada, tiempos no alineados rechazados)
+- [x] T010 Agregar validación de horario operativo a `TimeSlot.__post_init__` en `backend/domain/value_objects/time_slot.py`: lanzar `OperatingHoursError` si `start_time < time(6, 0)` o `end_time > time(23, 0)`; agregar pruebas unitarias a `backend/tests/unit/domain/test_time_slot.py` (cubre: 05:30–06:30 rechazado, 22:00–23:30 rechazado, 06:00–07:00 aceptado, 22:00–23:00 aceptado)
+- [x] T011 Agregar `is_bookable(now: datetime) -> bool` a `TimeSlot` en `backend/domain/value_objects/time_slot.py`: retorna `True` si `self.start_datetime - now >= timedelta(hours=1)`; agregar pruebas unitarias que cubran exactamente 60 min (aceptado), 59 min (rechazado) y franjas pasadas (rechazadas)
+- [x] T012 Agregar `overlaps_with(other: "TimeSlot") -> bool` a `TimeSlot`: retorna `True` solo si `self.date == other.date` y los rangos de tiempo comparten algún período (no meramente adyacentes); agregar pruebas unitarias que cubran: superposición misma fecha (True), franjas adyacentes misma fecha (False), no superpuestas misma fecha (False), fechas diferentes (False)
 
-**Checkpoint**: Run `pytest backend/tests/unit/` â€” all use case tests must pass before Phase 4.
-
----
-
-## Phase 4: Foundational â€” Infrastructure & API Bootstrap
-
-**Purpose**: SQLite persistence + FastAPI app wiring. Enables all API user stories.
-
-**âš ï¸ CRITICAL**: All API phases depend on this phase.
-
-- [x] T018 Create `backend/infrastructure/database.py`: SQLAlchemy `create_engine` pointing to `backend/reservations.db` (use `check_same_thread=False`); `SessionLocal` factory; `Base = declarative_base()`; function `create_tables()` that calls `Base.metadata.create_all()`; add `backend/infrastructure/__init__.py`
-- [x] T019 [P] Create `backend/infrastructure/models/field_model.py` (`FieldModel`: id, name), `backend/infrastructure/models/reservation_model.py` (`ReservationModel`: all columns from data-model.md schema), `backend/infrastructure/models/no_show_model.py` (`NoShowModel`); all inherit from `Base`; add `backend/infrastructure/models/__init__.py`
-- [x] T020 [P] Create `backend/infrastructure/seed.py`: `seed_fields(session)` function that inserts `FieldModel(name="Cancha A")`, `Cancha B`, `Cancha C` only if `session.query(FieldModel).count() == 0`; idempotent
-- [x] T021 Create `backend/infrastructure/repositories/sqlite_field_repository.py`: `SQLiteFieldRepository(FieldRepository)` implements `get_all()` by querying `FieldModel` and mapping each to `Field` domain entity; add `backend/infrastructure/repositories/__init__.py`
-- [x] T022 Create `backend/infrastructure/repositories/sqlite_reservation_repository.py`: `SQLiteReservationRepository(ReservationRepository)` implements all abstract methods; `count_active_by_user` filters by `status='active'` AND `(date > today OR (date = today AND end_time > current_time))`; `save` uses UUID v4 for id; `cancel` sets `status='cancelled'` and `cancelled_at`; `add_no_show` inserts `NoShowModel`; include ORMâ†”domain mapper methods
-- [x] T023 Create `backend/api/main.py`: FastAPI app with `lifespan` context that calls `create_tables()` then `seed_fields()`; create `backend/api/dependencies.py` with `get_db_session()` dependency and factory functions `get_field_repo()`, `get_reservation_repo()`, `get_create_reservation_uc()`, `get_cancel_reservation_uc()`, `get_list_reservations_uc()`, `get_list_slots_uc()`; add `backend/api/__init__.py` and `backend/api/routes/__init__.py`
-
-**Checkpoint**: Start backend with `uvicorn api.main:app --reload` from `backend/` â€” server starts, tables created, 3 fields seeded, no errors.
+**Punto de Control**: Ejecutar `pytest backend/tests/unit/` — todas las pruebas deben pasar antes de la Fase 3.
 
 ---
 
-## Phase 5: User Story 1 â€” View Field Availability (Priority: P1) ðŸŽ¯
+## Fase 3: Fundacional — Capa de Aplicación
 
-**Goal**: Users can view available 30-minute time slots per field for any future date.
+**Propósito**: Los casos de uso orquestan las reglas de dominio mediante fakes de repositorio inyectados. Sin SQLite, sin FastAPI.
 
-**Independent Test**: `GET /api/fields/availability?date=<tomorrow>` returns 3 fields with slot arrays; `GET` for a past date returns 400; UI shows slot grid.
+**⚠️ CRÍTICO**: Todas las fases de API y frontend dependen de que esta fase esté completa.
 
-- [x] T024 [US1] Create `backend/api/routes/fields.py`: `GET /api/fields/availability` â€” parse `date` query param, call `ListAvailableSlots.execute()`, return `FieldAvailabilityOutput` list; add `_domain_error_to_http()` helper in `backend/api/routes/fields.py` that maps `DomainError` subclasses to correct HTTP status codes and `{error_type, message}` body; add integration tests in `backend/tests/integration/test_api.py` (covers: valid future date â†’ 200 + 3 fields; past date â†’ 400)
-- [x] T025 [US1] Create `frontend/src/services/api.js`: export `fetchAvailability(date)` â€” `GET /api/fields/availability?date={date}`; returns parsed JSON; throws with `{error_type, message}` on non-2xx
-- [x] T026 [US1] Create `frontend/src/components/FieldAvailability.jsx`: date `<input type="date">` defaulting to tomorrow; on change calls `fetchAvailability`; renders one card per field showing field name and grid of available slot buttons (`HH:MMâ€“HH:MM`); emits `onSlotSelect(field, slot)` prop; shows "No slots available" when array is empty; renders inline error string on API failure
+- [x] T013 [P] Crear `backend/application/dtos.py`: definir dataclasses `CreateReservationInput` (user_id, field_id, date, start_time, end_time), `ReservationOutput` (reservation_id, user_id, field_id, field_name, date, start_time, end_time, status), `SlotOutput` (start_time, end_time), `FieldAvailabilityOutput` (field_id, field_name, available_slots), `CancelOutput` (reservation_id, status, no_show: bool); agregar `backend/application/__init__.py` y `backend/application/use_cases/__init__.py`
+- [x] T014 Crear `backend/application/use_cases/list_available_slots.py`: caso de uso `ListAvailableSlots` recibe `FieldRepository` + `ReservationRepository`; método `execute(date: date, now: datetime) -> list[FieldAvailabilityOutput]` genera todas las franjas de 30 min de 06:00–23:00, elimina rangos ocupados (de reservas activas), elimina franjas no reservables (is_bookable falla); escribir pruebas unitarias en `backend/tests/unit/use_cases/test_list_available_slots.py` usando clases de repositorio fake en línea (cubre: sin reservas → lista completa de franjas; franja ocupada → eliminada de la lista; franja dentro de 1h desde ahora → eliminada)
+- [x] T015 Crear `backend/application/use_cases/create_reservation.py`: caso de uso `CreateReservation`; `execute(input: CreateReservationInput, now: datetime) -> ReservationOutput`; pasos: (1) obtener cancha o lanzar `FieldNotFoundError`, (2) construir `TimeSlot` (lanza errores de duración/bloque/horario), (3) verificar `is_bookable` o lanzar `AdvanceNoticeError`, (4) `count_active_by_user` — lanzar `ActiveLimitError` si ≥ 2, (5) `get_active_by_field_and_date` + verificación `overlaps_with` — lanzar `OverlapError` si hay superposición, (6) guardar y retornar; escribir pruebas unitarias en `backend/tests/unit/use_cases/test_create_reservation.py` cubriendo las 6 violaciones de regla (una prueba por regla) + camino feliz
+- [x] T016 Crear `backend/application/use_cases/list_reservations.py`: caso de uso `ListReservations`; `execute(user_id: str, now: datetime) -> list[ReservationOutput]` llama `get_active_by_user` (solo reservas futuras activas); escribir pruebas unitarias en `backend/tests/unit/use_cases/test_list_reservations.py` (cubre: retorna solo futuras activas, excluye pasadas, retorna lista vacía para usuario desconocido)
+- [x] T017 Crear `backend/application/use_cases/cancel_reservation.py`: caso de uso `CancelReservation`; `execute(reservation_id: str, user_id: str, now: datetime) -> CancelOutput`; pasos: (1) obtener por id o lanzar `NotFoundError`, (2) verificar `r.user_id == user_id` o lanzar `NotAuthorizedError`, (3) verificar `r.status != 'cancelled'` o lanzar `AlreadyCancelledError`, (4) determinar no_show = `r.start_datetime - now < timedelta(hours=2)`, (5) cancelar, (6) si no_show agregar registro de no_show; escribir pruebas unitarias en `backend/tests/unit/use_cases/test_cancel_reservation.py` (cubre: cancelación limpia, cancelación tardía → no_show=True, no autorizado, ya cancelado, no encontrado)
 
-**Checkpoint**: Start backend + frontend; select a date; verify 3 field cards appear with available slots.
-
----
-
-## Phase 6: User Story 2 â€” Create a Reservation (Priority: P2) ðŸŽ¯
-
-**Goal**: Session user can select a slot and submit a reservation; all 6 domain rule violations produce distinct error messages.
-
-**Independent Test**: Submit valid reservation â†’ 201 + confirmation; submit each invalid case â†’ 422 with correct `error_type`.
-
-- [x] T027 [US2] Add `POST /api/reservations` to `backend/api/routes/reservations.py`: parse request body into `CreateReservationInput`, call `CreateReservation.execute(input, now=datetime.now())`; catch `DomainError` subclasses and return 422 with `{error_type, message}` (use error type name as string); catch `FieldNotFoundError` as 422; add integration tests in `backend/tests/integration/test_api.py` covering: valid request â†’ 201; each of the 6 rule violations â†’ 422 with correct `error_type`; register router on `api/main.py`
-- [x] T028 [US2] Add `createReservation(data)` to `frontend/src/services/api.js`: `POST /api/reservations` with JSON body; returns parsed response on 201; throws `{error_type, message}` on 422
-- [x] T029 [US2] Create `frontend/src/components/ErrorMessage.jsx`: receives `error` prop `{error_type, message}`; renders a styled error banner showing `message`; renders nothing when `error` is null
-- [x] T030 [US2] Create `frontend/src/components/ReservationForm.jsx`: receives `field` and `slot` props pre-populated from slot selection; shows user identifier (read-only, from session); on submit calls `createReservation`; on success shows confirmation with reservation ID and clears form; on error passes `{error_type, message}` to `ErrorMessage`
-- [x] T031 [US2] Create `frontend/src/components/IdentifierGate.jsx`: text input for user identifier + submit button; dispatches `{type: 'SET_USER_ID', payload: id}` to App reducer on submit; update `frontend/src/App.jsx` with `useReducer(reducer, {userId: null, view: 'gate'})` â€” reducer handles `SET_USER_ID` (sets userId, switches view to 'main'); main view renders `<FieldAvailability onSlotSelect={...} />` and conditionally renders `<ReservationForm />` when a slot is selected
-
-**Checkpoint**: Enter identifier â†’ see availability â†’ click slot â†’ fill form â†’ submit â†’ see confirmation; submit each invalid case â†’ see specific error message.
+**Punto de Control**: Ejecutar `pytest backend/tests/unit/` — todas las pruebas de casos de uso deben pasar antes de la Fase 4.
 
 ---
 
-## Phase 7: User Story 3 â€” View Own Reservations (Priority: P3)
+## Fase 4: Fundacional — Infraestructura y Bootstrap de API
 
-**Goal**: Session user can see their upcoming active reservations.
+**Propósito**: Persistencia SQLite + cableado de la aplicación FastAPI. Habilita todas las historias de usuario de API.
 
-**Independent Test**: `GET /api/reservations?user_id=maria` returns active future reservations; empty array for unknown user; UI list renders correctly.
+**⚠️ CRÍTICO**: Todas las fases de API dependen de esta fase.
 
-- [x] T032 [US3] Add `GET /api/reservations` to `backend/api/routes/reservations.py`: parse `user_id` query param, call `ListReservations.execute(user_id, now=datetime.now())`; return list of `ReservationOutput`; add integration tests (covers: user with 2 reservations â†’ returns both; unknown user â†’ 200 empty array; past reservation â†’ excluded)
-- [x] T033 [US3] Add `fetchReservations(userId)` to `frontend/src/services/api.js`: `GET /api/reservations?user_id={userId}`; returns parsed JSON array
-- [x] T034 [US3] Create `frontend/src/components/ReservationList.jsx`: calls `fetchReservations(userId)` on mount; renders each reservation as a card (field name, date, startâ€“end time); shows "No upcoming reservations" empty state when array is empty; integrate into `App.jsx` main view alongside `FieldAvailability`
+- [x] T018 Crear `backend/infrastructure/database.py`: `create_engine` de SQLAlchemy apuntando a `backend/reservations.db` (usar `check_same_thread=False`); fábrica `SessionLocal`; `Base = declarative_base()`; función `create_tables()` que llama `Base.metadata.create_all()`; agregar `backend/infrastructure/__init__.py`
+- [x] T019 [P] Crear `backend/infrastructure/models/field_model.py` (`FieldModel`: id, name), `backend/infrastructure/models/reservation_model.py` (`ReservationModel`: todas las columnas del esquema data-model.md), `backend/infrastructure/models/no_show_model.py` (`NoShowModel`); todos heredan de `Base`; agregar `backend/infrastructure/models/__init__.py`
+- [x] T020 [P] Crear `backend/infrastructure/seed.py`: función `seed_fields(session)` que inserta `FieldModel(name="Cancha A")`, `Cancha B`, `Cancha C` solo si `session.query(FieldModel).count() == 0`; idempotente
+- [x] T021 Crear `backend/infrastructure/repositories/sqlite_field_repository.py`: `SQLiteFieldRepository(FieldRepository)` implementa `get_all()` consultando `FieldModel` y mapeando cada uno a la entidad de dominio `Field`; agregar `backend/infrastructure/repositories/__init__.py`
+- [x] T022 Crear `backend/infrastructure/repositories/sqlite_reservation_repository.py`: `SQLiteReservationRepository(ReservationRepository)` implementa todos los métodos abstractos; `count_active_by_user` filtra por `status='active'` Y `(date > today OR (date = today AND end_time > current_time))`; `save` usa UUID v4 para id; `cancel` establece `status='cancelled'` y `cancelled_at`; `add_no_show` inserta `NoShowModel`; incluir métodos mapper ORM↔dominio
+- [x] T023 Crear `backend/api/main.py`: aplicación FastAPI con contexto `lifespan` que llama `create_tables()` luego `seed_fields()`; crear `backend/api/dependencies.py` con dependencia `get_db_session()` y funciones de fábrica `get_field_repo()`, `get_reservation_repo()`, `get_create_reservation_uc()`, `get_cancel_reservation_uc()`, `get_list_reservations_uc()`, `get_list_slots_uc()`; agregar `backend/api/__init__.py` y `backend/api/routes/__init__.py`
 
-**Checkpoint**: Create a reservation â†’ navigate to list â†’ verify it appears; check that past or cancelled reservations are absent.
-
----
-
-## Phase 8: User Story 4 â€” Cancel a Reservation (Priority: P4)
-
-**Goal**: Session user can cancel one of their active reservations; late cancellation shows no-show notice.
-
-**Independent Test**: `DELETE /api/reservations/{id}` with correct user â†’ 200 + `{no_show: bool}`; wrong user â†’ 403; already cancelled â†’ 400.
-
-- [x] T035 [US4] Add `DELETE /api/reservations/{reservation_id}` to `backend/api/routes/reservations.py`: parse body `{user_id}`, call `CancelReservation.execute(reservation_id, user_id, now=datetime.now())`; return `CancelOutput`; map `NotAuthorizedError` â†’ 403, `NotFoundError` â†’ 404, `AlreadyCancelledError` â†’ 400, all with `{error_type, message}` body; add integration tests (covers: clean cancel, late cancel â†’ no_show=true, unauthorized â†’ 403, already cancelled â†’ 400)
-- [x] T036 [US4] Add `cancelReservation(reservationId, userId)` to `frontend/src/services/api.js`: `DELETE /api/reservations/{reservationId}` with JSON body `{user_id: userId}`; returns parsed response; throws `{error_type, message}` on error
-- [x] T037 [US4] Add cancel button to each reservation card in `frontend/src/components/ReservationList.jsx`: on click calls `cancelReservation`; on success removes reservation from local list and shows no-show banner if `no_show === true`; on error renders `ErrorMessage` (403: "not authorized", 400: "already cancelled"); refresh list after successful cancellation
-
-**Checkpoint**: All 4 user stories independently functional. Run quickstart.md scenarios 1â€“12.
+**Punto de Control**: Iniciar backend con `uvicorn api.main:app --reload` desde `backend/` — el servidor inicia, tablas creadas, 3 canchas cargadas, sin errores.
 
 ---
 
-## Phase 9: Polish & Cross-Cutting Concerns
+## Fase 5: Historia de Usuario 1 — Ver Disponibilidad de Canchas (Prioridad: P1) 🎯
 
-- [x] T038 [P] Configure CORS in `backend/api/main.py`: add `CORSMiddleware` allowing `http://localhost:5173`; run full backend test suite `pytest backend/tests/ -v --cov=backend --cov-report=term-missing` â€” all tests must pass
-- [x] T039 [P] Run quickstart.md validation scenarios 1â€“12 end-to-end with both servers running; confirm all checkboxes pass
-- [x] T040 Constitution compliance review: verify (a) no business logic in `api/routes/` or any `frontend/src/` file, (b) no `import` from `infrastructure/` inside `domain/` or `application/`, (c) all 6 domain rules have unit tests, (d) `TimeSlot` is the only place validation logic lives
+**Objetivo**: Los usuarios pueden ver las franjas horarias de 30 minutos disponibles por cancha para cualquier fecha futura.
+
+**Prueba Independiente**: `GET /api/fields/availability?date=<mañana>` retorna 3 canchas con arrays de franjas; `GET` para fecha pasada retorna 400; la UI muestra la grilla de franjas.
+
+- [x] T024 [HU1] Crear `backend/api/routes/fields.py`: `GET /api/fields/availability` — parsear parámetro de consulta `date`, llamar `ListAvailableSlots.execute()`, retornar lista `FieldAvailabilityOutput`; agregar helper `_domain_error_to_http()` en `backend/api/routes/fields.py` que mapea subclases de `DomainError` a códigos de estado HTTP correctos y cuerpo `{error_type, message}`; agregar pruebas de integración en `backend/tests/integration/test_api.py` (cubre: fecha futura válida → 200 + 3 canchas; fecha pasada → 400)
+- [x] T025 [HU1] Crear `frontend/src/services/api.js`: exportar `fetchAvailability(date)` — `GET /api/fields/availability?date={date}`; retorna JSON parseado; lanza `{error_type, message}` en no-2xx
+- [x] T026 [HU1] Crear `frontend/src/components/FieldAvailability.jsx`: `<input type="date">` por defecto en mañana; al cambiar llama `fetchAvailability`; renderiza una tarjeta por cancha mostrando nombre de cancha y grilla de botones de franja disponible (`HH:MM–HH:MM`); emite prop `onSlotSelect(field, slot)`; muestra "Sin franjas disponibles" cuando el array está vacío; renderiza cadena de error en línea al fallar la API
+
+**Punto de Control**: Iniciar backend + frontend; seleccionar una fecha; verificar que aparecen 3 tarjetas de cancha con franjas disponibles.
 
 ---
 
-## Dependencies & Execution Order
+## Fase 6: Historia de Usuario 2 — Crear una Reserva (Prioridad: P2) 🎯
 
-### Phase Dependencies
+**Objetivo**: El usuario de la sesión puede seleccionar una franja y enviar una reserva; las 6 violaciones de regla de dominio producen mensajes de error distintos.
 
-- **Setup (Phase 1)**: No dependencies â€” start immediately
-- **Domain Layer (Phase 2)**: Depends on Setup â€” **BLOCKS all subsequent phases**
-- **Application Layer (Phase 3)**: Depends on Domain Layer â€” BLOCKS API and Frontend
-- **Infrastructure & API Bootstrap (Phase 4)**: Depends on Application Layer â€” BLOCKS all API phases
-- **US1 (Phase 5)**: Depends on Phase 4 completion
-- **US2 (Phase 6)**: Depends on Phase 5 (FieldAvailability renders slots that ReservationForm reads)
-- **US3 (Phase 7)**: Depends on Phase 4; can start after Phase 4 independently of US2
-- **US4 (Phase 8)**: Depends on Phase 7 (cancel button lives in ReservationList)
-- **Polish (Phase 9)**: Depends on all user story phases
+**Prueba Independiente**: Enviar reserva válida → 201 + confirmación; enviar cada caso inválido → 422 con `error_type` correcto.
 
-### Parallel Opportunities Within Phases
+- [x] T027 [HU2] Agregar `POST /api/reservations` a `backend/api/routes/reservations.py`: parsear cuerpo de solicitud en `CreateReservationInput`, llamar `CreateReservation.execute(input, now=datetime.now())`; capturar subclases de `DomainError` y retornar 422 con `{error_type, message}` (usar nombre del tipo de error como cadena); capturar `FieldNotFoundError` como 422; agregar pruebas de integración en `backend/tests/integration/test_api.py` cubriendo: solicitud válida → 201; cada una de las 6 violaciones de regla → 422 con `error_type` correcto; registrar router en `api/main.py`
+- [x] T028 [HU2] Agregar `createReservation(data)` a `frontend/src/services/api.js`: `POST /api/reservations` con cuerpo JSON; retorna respuesta parseada en 201; lanza `{error_type, message}` en 422
+- [x] T029 [HU2] Crear `frontend/src/components/ErrorMessage.jsx`: recibe prop `error` `{error_type, message}`; renderiza un banner de error estilizado mostrando `message`; no renderiza nada cuando `error` es null
+- [x] T030 [HU2] Crear `frontend/src/components/ReservationForm.jsx`: recibe props `field` y `slot` pre-poblados desde la selección de franja; muestra identificador de usuario (solo lectura, de la sesión); al enviar llama `createReservation`; en éxito muestra confirmación con ID de reserva y limpia el formulario; en error pasa `{error_type, message}` a `ErrorMessage`
+- [x] T031 [HU2] Crear `frontend/src/components/IdentifierGate.jsx`: input de texto para identificador de usuario + botón enviar; despacha `{type: 'SET_USER_ID', payload: id}` al reducer de App al enviar; actualizar `frontend/src/App.jsx` con `useReducer(reducer, {userId: null, view: 'gate'})` — el reducer maneja `SET_USER_ID` (establece userId, cambia vista a 'main'); la vista principal renderiza `<FieldAvailability onSlotSelect={...} />` y renderiza condicionalmente `<ReservationForm />` cuando se selecciona una franja
+
+**Punto de Control**: Ingresar identificador → ver disponibilidad → hacer clic en franja → completar formulario → enviar → ver confirmación; enviar cada caso inválido → ver mensaje de error específico.
+
+---
+
+## Fase 7: Historia de Usuario 3 — Ver Mis Reservas (Prioridad: P3)
+
+**Objetivo**: El usuario de la sesión puede ver sus próximas reservas activas.
+
+**Prueba Independiente**: `GET /api/reservations?user_id=maria` retorna reservas futuras activas; array vacío para usuario desconocido; la lista de UI se renderiza correctamente.
+
+- [x] T032 [HU3] Agregar `GET /api/reservations` a `backend/api/routes/reservations.py`: parsear parámetro de consulta `user_id`, llamar `ListReservations.execute(user_id, now=datetime.now())`; retornar lista de `ReservationOutput`; agregar pruebas de integración (cubre: usuario con 2 reservas → retorna ambas; usuario desconocido → 200 array vacío; reserva pasada → excluida)
+- [x] T033 [HU3] Agregar `fetchReservations(userId)` a `frontend/src/services/api.js`: `GET /api/reservations?user_id={userId}`; retorna array JSON parseado
+- [x] T034 [HU3] Crear `frontend/src/components/ReservationList.jsx`: llama `fetchReservations(userId)` al montar; renderiza cada reserva como tarjeta (nombre de cancha, fecha, hora inicio–fin); muestra estado vacío "Sin próximas reservas" cuando el array está vacío; integrar en la vista principal de `App.jsx` junto con `FieldAvailability`
+
+**Punto de Control**: Crear una reserva → navegar a la lista → verificar que aparece; comprobar que las reservas pasadas o canceladas están ausentes.
+
+---
+
+## Fase 8: Historia de Usuario 4 — Cancelar una Reserva (Prioridad: P4)
+
+**Objetivo**: El usuario de la sesión puede cancelar una de sus reservas activas; la cancelación tardía muestra aviso de no-show.
+
+**Prueba Independiente**: `DELETE /api/reservations/{id}` con usuario correcto → 200 + `{no_show: bool}`; usuario incorrecto → 403; ya cancelada → 400.
+
+- [x] T035 [HU4] Agregar `DELETE /api/reservations/{reservation_id}` a `backend/api/routes/reservations.py`: parsear cuerpo `{user_id}`, llamar `CancelReservation.execute(reservation_id, user_id, now=datetime.now())`; retornar `CancelOutput`; mapear `NotAuthorizedError` → 403, `NotFoundError` → 404, `AlreadyCancelledError` → 400, todos con cuerpo `{error_type, message}`; agregar pruebas de integración (cubre: cancelación limpia, cancelación tardía → no_show=true, no autorizado → 403, ya cancelado → 400)
+- [x] T036 [HU4] Agregar `cancelReservation(reservationId, userId)` a `frontend/src/services/api.js`: `DELETE /api/reservations/{reservationId}` con cuerpo JSON `{user_id: userId}`; retorna respuesta parseada; lanza `{error_type, message}` en error
+- [x] T037 [HU4] Agregar botón cancelar a cada tarjeta de reserva en `frontend/src/components/ReservationList.jsx`: al hacer clic llama `cancelReservation`; en éxito elimina la reserva de la lista local y muestra banner de no-show si `no_show === true`; en error renderiza `ErrorMessage` (403: "no autorizado", 400: "ya cancelada"); actualizar lista después de cancelación exitosa
+
+**Punto de Control**: Las 4 historias de usuario funcionan de forma independiente. Ejecutar escenarios 1–12 de quickstart.md.
+
+---
+
+## Fase 9: Pulido y Consideraciones Transversales
+
+- [x] T038 [P] Configurar CORS en `backend/api/main.py`: agregar `CORSMiddleware` permitiendo `http://localhost:5173`; ejecutar suite completa de pruebas del backend `pytest backend/tests/ -v --cov=backend --cov-report=term-missing` — todas las pruebas deben pasar
+- [x] T039 [P] Ejecutar escenarios de validación 1–12 de quickstart.md de extremo a extremo con ambos servidores corriendo; confirmar que todos los checkboxes pasan
+- [x] T040 Revisión de cumplimiento de constitución: verificar (a) sin lógica de negocio en `api/routes/` ni en ningún archivo de `frontend/src/`, (b) sin `import` desde `infrastructure/` dentro de `domain/` o `application/`, (c) las 6 reglas de dominio tienen pruebas unitarias, (d) `TimeSlot` es el único lugar donde vive la lógica de validación
+
+---
+
+## Dependencias y Orden de Ejecución
+
+### Dependencias entre Fases
+
+- **Configuración (Fase 1)**: Sin dependencias — comenzar inmediatamente
+- **Capa de Dominio (Fase 2)**: Depende de Configuración — **BLOQUEA todas las fases siguientes**
+- **Capa de Aplicación (Fase 3)**: Depende de Capa de Dominio — BLOQUEA API y Frontend
+- **Infraestructura y Bootstrap de API (Fase 4)**: Depende de Capa de Aplicación — BLOQUEA todas las fases de API
+- **HU1 (Fase 5)**: Depende de la finalización de Fase 4
+- **HU2 (Fase 6)**: Depende de Fase 5 (FieldAvailability renderiza franjas que ReservationForm lee)
+- **HU3 (Fase 7)**: Depende de Fase 4; puede comenzar después de Fase 4 independientemente de HU2
+- **HU4 (Fase 8)**: Depende de Fase 7 (el botón cancelar vive en ReservationList)
+- **Pulido (Fase 9)**: Depende de todas las fases de historias de usuario
+
+### Oportunidades de Paralelismo Dentro de las Fases
 
 ```bash
-# Phase 2 â€” run in parallel (different files):
+# Fase 2 — ejecutar en paralelo (archivos diferentes):
 T005  # field.py
 T006  # reservation.py
 T007  # field_repository.py
 T008  # reservation_repository.py
 
-# Phase 4 â€” run in parallel after T018:
-T019  # ORM models
+# Fase 4 — ejecutar en paralelo después de T018:
+T019  # Modelos ORM
 T020  # seed.py
 
-# Phase 9 â€” run in parallel:
-T038  # CORS + test suite
-T039  # quickstart validation
+# Fase 9 — ejecutar en paralelo:
+T038  # CORS + suite de pruebas
+T039  # Validación de quickstart
 ```
 
 ---
 
-## Implementation Strategy
+## Estrategia de Implementación
 
-### MVP First (Domain + US1 + US2 only)
+### MVP Primero (Dominio + HU1 + HU2 únicamente)
 
-1. Complete Phase 1: Setup
-2. Complete Phase 2: Domain Layer + all unit tests green
-3. Complete Phase 3: Application Layer + all unit tests green
-4. Complete Phase 4: Infrastructure + API Bootstrap
-5. Complete Phase 5: US1 (View Availability)
-6. Complete Phase 6: US2 (Create Reservation)
-7. **STOP and VALIDATE**: Full booking flow works end-to-end (quickstart scenarios 1â€“7)
-8. Deploy / demo if ready
+1. Completar Fase 1: Configuración
+2. Completar Fase 2: Capa de Dominio + todas las pruebas unitarias en verde
+3. Completar Fase 3: Capa de Aplicación + todas las pruebas unitarias en verde
+4. Completar Fase 4: Infraestructura + Bootstrap de API
+5. Completar Fase 5: HU1 (Ver Disponibilidad)
+6. Completar Fase 6: HU2 (Crear Reserva)
+7. **PARAR y VALIDAR**: El flujo completo de reserva funciona de extremo a extremo (escenarios quickstart 1–7)
+8. Desplegar / demostrar si está listo
 
-### Incremental Delivery
+### Entrega Incremental
 
-1. Phases 1â€“4 complete â†’ Domain + Application + Infrastructure ready
-2. Phase 5 (US1) â†’ Availability view live, test independently
-3. Phase 6 (US2) â†’ Booking flow live, test independently
-4. Phase 7 (US3) â†’ Reservation list live, test independently
-5. Phase 8 (US4) â†’ Cancel flow live, test independently
-6. Phase 9 â†’ Polish + full regression pass
+1. Fases 1–4 completas → Dominio + Aplicación + Infraestructura listas
+2. Fase 5 (HU1) → Vista de disponibilidad en vivo, probar de forma independiente
+3. Fase 6 (HU2) → Flujo de reserva en vivo, probar de forma independiente
+4. Fase 7 (HU3) → Lista de reservas en vivo, probar de forma independiente
+5. Fase 8 (HU4) → Flujo de cancelación en vivo, probar de forma independiente
+6. Fase 9 → Pulido + pasada completa de regresión
 
 ---
 
-## Notes
+## Notas
 
-- `[P]` = different files, no dependency on a sibling task in the same phase
-- `[US?]` = maps to user story for traceability
-- Tests for domain rules are written FIRST and must FAIL before the rule logic is implemented (TDD Redâ†’Green)
-- Each phase ends with a runnable checkpoint â€” stop and verify before advancing
-- No business logic in `api/routes/` â€” only HTTP in/out and `DomainError` mapping
-- No SQLAlchemy or infrastructure imports inside `domain/` or `application/`
-
+- `[P]` = archivos diferentes, sin dependencia de una tarea hermana en la misma fase
+- `[HU?]` = mapea a historia de usuario para trazabilidad
+- Las pruebas para reglas de dominio se escriben PRIMERO y deben FALLAR antes de implementar la lógica de regla (TDD Rojo→Verde)
+- Cada fase termina con un punto de control ejecutable — parar y verificar antes de avanzar
+- Sin lógica de negocio en `api/routes/` — solo HTTP entrada/salida y mapeo de `DomainError`
+- Sin importaciones de SQLAlchemy o infraestructura dentro de `domain/` o `application/`

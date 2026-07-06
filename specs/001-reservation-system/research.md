@@ -1,164 +1,169 @@
-# Research: Reservation System for Synthetic Football Fields
+# Investigación: Sistema de Reservas para Canchas de Fútbol Sintético
 
-**Phase 0 output** — all technical decisions resolved before design begins.
-
----
-
-## Decision 1: Architecture Pattern
-
-**Decision**: Clean Architecture with four explicit layers (domain, application,
-infrastructure, API).
-
-**Rationale**: Mandated by Constitution Principles I and II. Keeps business rules
-testable in isolation, decouples persistence from logic, and allows the API layer to
-be replaced without touching the domain.
-
-**Alternatives considered**: Layered MVC (rejected — business logic leaks into
-controllers); Active Record (rejected — couples domain to persistence, violates
-inward dependency rule).
+**Salida de Fase 0** — todas las decisiones técnicas resueltas antes de que comience el diseño.
 
 ---
 
-## Decision 2: "Completed" State Implementation
+## Decisión 1: Patrón de Arquitectura
 
-**Decision**: Reservations are stored as `active` in the database. At query time,
-any reservation whose `end_datetime` (date + end_time) is in the past is treated as
-`completed`. No background job or cron task is used. The repository's
-"count active for user" query filters by `status = 'active' AND end_datetime > now()`.
+**Decisión**: Arquitectura Limpia con cuatro capas explícitas (dominio, aplicación,
+infraestructura, API).
 
-**Rationale**: SQLite has no native scheduler. Adding a background task (APScheduler,
-Celery) would violate Constitution Principle III (no message queues, simplicity first).
-Computing completion at query time is correct, requires no extra infrastructure, and is
-fully testable.
+**Justificación**: Mandatado por los Principios I y II de la Constitución. Mantiene las
+reglas de negocio verificables de forma aislada, desacopla la persistencia de la lógica
+y permite reemplazar la capa API sin tocar el dominio.
 
-**Alternatives considered**: Storing `completed` as an explicit DB status updated by a
-cron job (rejected — over-engineering for MVP, requires scheduler dependency); SQLAlchemy
-event hooks to auto-update status (rejected — magic behavior, hard to test, hides logic).
+**Alternativas consideradas**: MVC por capas (rechazado — la lógica de negocio se filtra
+hacia los controladores); Active Record (rechazado — acopla el dominio a la persistencia,
+viola la regla de dependencia hacia adentro).
 
 ---
 
-## Decision 3: Concurrency / Double-Booking Prevention
+## Decisión 2: Implementación del Estado "Completado"
 
-**Decision**: SQLite opened in WAL mode with IMMEDIATE transactions for write
-operations. The `create_reservation` use case acquires a transaction, checks for
-overlaps via a SELECT query, and inserts only if none exist. SQLite IMMEDIATE mode
-serializes concurrent writes, preventing two simultaneous bookings from both succeeding.
+**Decisión**: Las reservas se almacenan como `active` en la base de datos. En tiempo de
+consulta, cualquier reserva cuyo `end_datetime` (date + end_time) está en el pasado es
+tratada como `completed`. No se usa ningún job en segundo plano ni tarea cron. La consulta
+del repositorio "contar activas para un usuario" filtra por `status = 'active' AND end_datetime > now()`.
 
-**Rationale**: SQLite WAL mode with IMMEDIATE transactions is the simplest reliable
-solution. At MVP scale (handful of users), SQLite write serialization is sufficient.
+**Justificación**: SQLite no tiene un planificador nativo. Agregar una tarea en segundo
+plano (APScheduler, Celery) violaría el Principio III de la Constitución (sin colas de
+mensajes, simplicidad primero). Computar la finalización en tiempo de consulta es correcto,
+no requiere infraestructura adicional y es completamente verificable.
 
-**Alternatives considered**: Optimistic locking with version columns (rejected —
-complexity not justified at MVP scale); application-level in-memory locks (rejected —
-doesn't work across processes, fragile).
-
----
-
-## Decision 4: Repository Pattern Implementation
-
-**Decision**: Abstract repository interfaces (`FieldRepository`, `ReservationRepository`)
-defined in `domain/repositories/` as Python ABCs. Concrete SQLAlchemy implementations
-live in `infrastructure/repositories/`. Use cases receive repositories via constructor
-injection (dependency inversion). Unit tests inject in-memory fakes; integration tests
-use real SQLite.
-
-**Rationale**: Enables pure domain unit tests with no DB dependency. Enforces the
-inward dependency rule — domain never imports from infrastructure. Matches the port/
-adapter pattern of Clean Architecture.
-
-**Alternatives considered**: Direct SQLAlchemy queries in use cases (rejected —
-couples application layer to infrastructure, violates Constitution Principle II);
-Django ORM / Active Record (rejected — no Django in this stack).
+**Alternativas consideradas**: Almacenar `completed` como estado explícito en BD actualizado
+por una tarea cron (rechazado — sobreingeniería para MVP, requiere dependencia de planificador);
+hooks de eventos de SQLAlchemy para auto-actualizar el estado (rechazado — comportamiento mágico,
+difícil de probar, oculta la lógica).
 
 ---
 
-## Decision 5: Domain Exceptions Strategy
+## Decisión 3: Concurrencia / Prevención de Reservas Duplicadas
 
-**Decision**: A base `DomainError` exception in `domain/exceptions.py` with typed
-subclasses per rule violation (`OverlapError`, `OperatingHoursError`, `AdvanceNoticeError`,
+**Decisión**: SQLite abierto en modo WAL con transacciones IMMEDIATE para operaciones de
+escritura. El caso de uso `create_reservation` adquiere una transacción, verifica superposiciones
+mediante una consulta SELECT e inserta solo si no existen. El modo IMMEDIATE de SQLite serializa
+las escrituras concurrentes, evitando que dos reservas simultáneas ambas tengan éxito.
+
+**Justificación**: El modo WAL de SQLite con transacciones IMMEDIATE es la solución fiable
+más simple. A escala MVP (pocos usuarios), la serialización de escritura de SQLite es suficiente.
+
+**Alternativas consideradas**: Bloqueo optimista con columnas de versión (rechazado — complejidad
+no justificada a escala MVP); bloqueos en memoria a nivel de aplicación (rechazado — no funciona
+entre procesos, frágil).
+
+---
+
+## Decisión 4: Implementación del Patrón Repositorio
+
+**Decisión**: Interfaces de repositorio abstractas (`FieldRepository`, `ReservationRepository`)
+definidas en `domain/repositories/` como ABCs de Python. Las implementaciones concretas de
+SQLAlchemy viven en `infrastructure/repositories/`. Los casos de uso reciben repositorios
+mediante inyección por constructor (inversión de dependencias). Las pruebas unitarias inyectan
+fakes en memoria; las pruebas de integración usan SQLite real.
+
+**Justificación**: Permite pruebas unitarias de dominio puras sin dependencia de BD. Aplica la
+regla de dependencia hacia adentro — el dominio nunca importa desde infraestructura. Sigue el
+patrón puerto/adaptador de la Arquitectura Limpia.
+
+**Alternativas consideradas**: Consultas SQLAlchemy directas en casos de uso (rechazado —
+acopla la capa de aplicación a la infraestructura, viola el Principio II de la Constitución);
+Django ORM / Active Record (rechazado — no está en este stack).
+
+---
+
+## Decisión 5: Estrategia de Excepciones de Dominio
+
+**Decisión**: Una excepción base `DomainError` en `domain/exceptions.py` con subclases tipadas
+por violación de regla (`OverlapError`, `OperatingHoursError`, `AdvanceNoticeError`,
 `DurationError`, `ActiveLimitError`, `FieldNotFoundError`, `NotAuthorizedError`,
-`AlreadyCancelledError`). The API layer catches `DomainError` subclasses and maps them
-to appropriate HTTP status codes (422 Unprocessable Entity for business rule violations,
-404/403 for resource/auth errors).
+`AlreadyCancelledError`). La capa API captura subclases de `DomainError` y las mapea a los
+códigos de estado HTTP apropiados (422 Unprocessable Entity para violaciones de reglas de
+negocio, 404/403 para errores de recurso/autorización).
 
-**Rationale**: Typed exceptions make it impossible to accidentally swallow a specific
-rule violation. The API layer's mapping is explicit and testable. Each error type
-carries a human-readable `message` that FR-011 requires.
+**Justificación**: Las excepciones tipadas hacen imposible capturar accidentalmente una violación
+de regla específica. El mapeo de la capa API es explícito y verificable. Cada tipo de error lleva
+un `message` legible por humanos que el RF-011 requiere.
 
-**Alternatives considered**: Returning result objects / discriminated unions (rejected
-— more complex than exceptions for this scale); generic `ValueError` (rejected — loses
-type information, harder to map to HTTP codes).
-
----
-
-## Decision 6: Frontend State Architecture
-
-**Decision**: `App.jsx` holds a single `useReducer` store with shape
-`{ userId: string | null, view: 'gate' | 'main' }`. Each child component manages its
-own local state with `useState` (e.g., selected date in `FieldAvailability`, form
-fields in `ReservationForm`). `ReservationList` fetches on mount and after cancellation.
-All HTTP calls are centralized in `services/api.js`.
-
-**Rationale**: Matches constitution constraint (useState/useReducer only). `useReducer`
-at App level for session state is a well-established React pattern for global-ish state
-without Redux. Local `useState` for ephemeral UI state keeps components self-contained.
-
-**Alternatives considered**: React Context for userId propagation (rejected — adds
-abstraction not needed at this scale; prop drilling at 2 levels is fine); Redux Toolkit
-(prohibited by constitution).
+**Alternativas consideradas**: Devolver objetos resultado / uniones discriminadas (rechazado —
+más complejo que excepciones a esta escala); `ValueError` genérico (rechazado — pierde información
+de tipo, más difícil de mapear a códigos HTTP).
 
 ---
 
-## Decision 7: API Error Response Shape
+## Decisión 6: Arquitectura de Estado del Frontend
 
-**Decision**: All domain rule violations return HTTP 422 with body:
+**Decisión**: `App.jsx` mantiene un único almacén `useReducer` con forma
+`{ userId: string | null, view: 'gate' | 'main' }`. Cada componente hijo maneja su propio
+estado local con `useState` (p. ej., fecha seleccionada en `FieldAvailability`, campos del
+formulario en `ReservationForm`). `ReservationList` obtiene datos al montar y después de
+una cancelación. Todas las llamadas HTTP están centralizadas en `services/api.js`.
+
+**Justificación**: Cumple la restricción de la constitución (solo useState/useReducer). `useReducer`
+a nivel de App para el estado de sesión es un patrón React bien establecido para estado
+"casi global" sin Redux. `useState` local para estado de UI efímero mantiene los componentes
+autocontenidos.
+
+**Alternativas consideradas**: React Context para propagación de userId (rechazado — agrega
+abstracción no necesaria a esta escala; el prop drilling a 2 niveles es aceptable); Redux Toolkit
+(prohibido por la constitución).
+
+---
+
+## Decisión 7: Forma de Respuesta de Error de la API
+
+**Decisión**: Todas las violaciones de reglas de dominio devuelven HTTP 422 con cuerpo:
 ```json
 {
   "error_type": "OVERLAP | DURATION_INVALID | OPERATING_HOURS | ADVANCE_NOTICE | ACTIVE_LIMIT | FIELD_NOT_FOUND | NOT_AUTHORIZED | ALREADY_CANCELLED | INVALID_BLOCK",
-  "message": "Human-readable explanation of the violation"
+  "message": "Explicación legible por humanos de la violación de regla."
 }
 ```
-Resource errors (not found, unauthorized) return 404/403 with the same shape.
-FastAPI validation errors (malformed request) return 422 with FastAPI's default shape.
+Los errores de recurso (no encontrado, no autorizado) devuelven 404/403 con la misma forma.
+Los errores de validación de FastAPI (solicitud malformada) devuelven 422 con la forma por
+defecto de FastAPI.
 
-**Rationale**: A machine-readable `error_type` lets the frontend display targeted
-messages per rule (FR-011). Consistent shape across all error responses simplifies
-frontend error handling.
+**Justificación**: Un `error_type` legible por máquina permite al frontend mostrar mensajes
+específicos por regla (RF-011). La forma consistente en todas las respuestas de error simplifica
+el manejo de errores en el frontend.
 
-**Alternatives considered**: Single `detail` string (rejected — frontend cannot
-distinguish overlap from advance notice without parsing text); HTTP 400 for all domain
-errors (rejected — 422 is semantically correct for validation failures, 400 for
-malformed requests).
-
----
-
-## Decision 8: Testing Strategy
-
-**Decision**:
-- **Unit tests** (`tests/unit/domain/`): Test `TimeSlot` and domain entities with
-  no database. Inject fake/stub repositories. Cover all 6 domain rules, boundary
-  conditions, and the `completed` state transition logic.
-- **Integration tests** (`tests/integration/test_api.py`): Use FastAPI's `TestClient`
-  (backed by httpx) with an in-memory SQLite database. Test each endpoint's happy path
-  and primary error paths. Do not duplicate unit-level boundary testing.
-
-**Rationale**: Unit tests are fast and isolated — ideal for the exhaustive domain
-rule coverage TDD requires. Integration tests verify the wiring (FastAPI → use cases →
-repository → SQLite) without duplicating domain logic tests.
-
-**Alternatives considered**: Only integration tests (rejected — too slow for TDD
-cycle, DB setup makes boundary testing verbose); mocking SQLAlchemy in unit tests
-(rejected — we use fake repositories instead, which is cleaner and DB-agnostic).
+**Alternativas consideradas**: Cadena `detail` única (rechazado — el frontend no puede distinguir
+superposición de aviso previo sin analizar texto); HTTP 400 para todos los errores de dominio
+(rechazado — 422 es semánticamente correcto para fallas de validación, 400 para solicitudes malformadas).
 
 ---
 
-## Decision 9: Field Seeding
+## Decisión 8: Estrategia de Pruebas
 
-**Decision**: `infrastructure/seed.py` contains a `seed_fields()` function called
-during FastAPI's `lifespan` startup event. Seeds 3 fields ("Cancha A", "Cancha B",
-"Cancha C") if the fields table is empty. Idempotent — safe to call on every restart.
+**Decisión**:
+- **Pruebas unitarias** (`tests/unit/domain/`): Prueban `TimeSlot` y entidades de dominio sin
+  base de datos. Inyectan repositorios fake/stub. Cubren las 6 reglas de dominio, condiciones
+  límite y la lógica de transición al estado `completed`.
+- **Pruebas de integración** (`tests/integration/test_api.py`): Usan `TestClient` de FastAPI
+  (respaldado por httpx) con una base de datos SQLite en memoria. Prueban el camino feliz de
+  cada endpoint y los principales caminos de error. No duplican las pruebas límite a nivel unitario.
 
-**Rationale**: Admin panel is out of scope. Fields must exist before reservations can
-be made. Seed on startup is the simplest approach with no migration tooling overhead.
+**Justificación**: Las pruebas unitarias son rápidas y aisladas — ideales para la cobertura
+exhaustiva de reglas de dominio que requiere TDD. Las pruebas de integración verifican el
+cableado (FastAPI → casos de uso → repositorio → SQLite) sin duplicar las pruebas de lógica
+de dominio.
 
-**Alternatives considered**: Migration scripts (rejected — over-engineering for 3 static
-records); fixtures in tests (still needed, but separately from production seed).
+**Alternativas consideradas**: Solo pruebas de integración (rechazado — demasiado lentas para
+el ciclo TDD, la configuración de BD hace verbose las pruebas límite); mockear SQLAlchemy en
+pruebas unitarias (rechazado — usamos repositorios fake en su lugar, que es más limpio y
+agnóstico a la BD).
+
+---
+
+## Decisión 9: Carga Inicial de Canchas
+
+**Decisión**: `infrastructure/seed.py` contiene una función `seed_fields()` llamada durante el
+evento de inicio `lifespan` de FastAPI. Carga 3 canchas ("Cancha A", "Cancha B", "Cancha C")
+si la tabla de canchas está vacía. Idempotente — seguro de llamar en cada reinicio.
+
+**Justificación**: El panel de administración está fuera del alcance. Las canchas deben existir
+antes de que puedan hacerse reservas. Cargar al inicio es el enfoque más simple sin overhead
+de herramientas de migración.
+
+**Alternativas consideradas**: Scripts de migración (rechazado — sobreingeniería para 3 registros
+estáticos); fixtures en pruebas (aún necesarios, pero por separado de la carga de producción).
