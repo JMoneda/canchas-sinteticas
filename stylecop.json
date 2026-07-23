@@ -1,0 +1,70 @@
+{
+  "$schema": "https://raw.githubusercontent.com/DotNetAnalyzers/StyleCopAnalyzers/master/StyleCop.Analyzers/StyleCop.Analyzers/Settings/stylecop.schema.json",
+  "settings": {
+    "documentationRules": {
+      "documentExposedPublicMembers": true,
+      "documentInternalProtectedMembers": false,
+      "documentInterfaces": true,
+      "documentPrivateMembers": false,
+      "documentPrivateFields": false,
+      "companyName": "Canchas Sintéticas",
+      "copyrightText": "Copyright (c) {year} Canchas Sintéticas. All rights reserved.",
+      "headerDecoration": "------------------------------------------------------------",
+      "variables": {
+        "CompanyName": "Canchas Sintéticas",
+        "CurrentYear": "2024"
+      }
+    },
+    "maintainabilityRules": {
+      "topLevelTypes": [
+        "class",
+        "interface",
+        "struct",
+        "delegate",
+        "enum"
+      ]
+    },
+    "layoutRules": {
+      "newlineAtEndOfFile": "require",
+      "allowConsecutiveUsings": "global and non-global"
+    },
+    "namingConventions": {
+      "allowUnderscoreLeadingLowerCaseNames": false,
+      "allowedNamespacesForInternalTypes": [],
+      "filenameMatchesFirstTypeDeclaration": true
+    },
+    "orderingRules": {
+      "elementOrder": [
+        "Kind",
+        "Accessibility",
+        "Modifiers",
+        "Name"
+      ],
+      "orderByKind": {
+        "Order": [
+          "OuterType",
+          "InnerType",
+          "InnerEnum",
+          "Field",
+          "Constructor",
+          "Finalizer",
+          "Property",
+          "Indexer",
+          "Method",
+          "Operator",
+          "ConversionOperator",
+          "Event",
+          "Delegate"
+        ]
+      }
+    },
+    "readabilityRules": {
+      "allowBuiltInTypeNames": false,
+      "useBuiltInTypeAlias": true
+    },
+    "spacingRules": {
+      "indentationSize": 4,
+      "indentWithTabs": false
+    }
+  }
+}
