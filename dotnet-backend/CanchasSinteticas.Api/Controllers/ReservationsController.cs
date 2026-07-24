@@ -10,7 +10,8 @@ namespace CanchasSinteticas.Api.Controllers;
 [Authorize]
 public class ReservationsController(
     ReservationService reservations,
-    PaymentService payments) : ApiControllerBase
+    PaymentService payments,
+    ReceiptService receipts) : ApiControllerBase
 {
     /// <summary>Crea una reserva para el cliente autenticado.</summary>
     [HttpPost]
@@ -29,13 +30,29 @@ public class ReservationsController(
     [ProducesResponseType(typeof(CancelOutput), 200)]
     [ProducesResponseType(403)]
     [ProducesResponseType(404)]
-    public IActionResult Cancel(string reservationId) =>
-        Ok(reservations.Cancel(CurrentUserId, reservationId));
+    public async Task<IActionResult> Cancel(string reservationId) =>
+        Ok(await reservations.CancelAsync(CurrentUserId, reservationId));
 
-    /// <summary>Paga (simulado) una reserva del cliente.</summary>
+    /// <summary>Inicia el pago real de una reserva del cliente y devuelve la información de checkout.</summary>
     [HttpPost("{reservationId}/pay")]
-    [ProducesResponseType(typeof(PaymentOutput), 200)]
+    [ProducesResponseType(typeof(PaymentInitiationOutput), 200)]
     [ProducesResponseType(404)]
-    public IActionResult Pay(string reservationId, [FromBody] PayInput input) =>
-        Ok(payments.Pay(CurrentUserId, reservationId, input));
+    [ProducesResponseType(409)]
+    [ProducesResponseType(502)]
+    public async Task<IActionResult> Pay(string reservationId, [FromBody] PayInput input) =>
+        Ok(await payments.PayAsync(CurrentUserId, reservationId, input));
+
+    /// <summary>Descarga el comprobante de una reserva (PDF por defecto; JSON con ?format=json).</summary>
+    [HttpGet("{reservationId}/receipt")]
+    [ProducesResponseType(typeof(ReceiptOutput), 200)]
+    [ProducesResponseType(403)]
+    [ProducesResponseType(404)]
+    public IActionResult Receipt(string reservationId, [FromQuery] string? format)
+    {
+        var (receipt, pdf) = receipts.GetReservationReceipt(CurrentUserId, reservationId);
+        if (string.Equals(format, "json", StringComparison.OrdinalIgnoreCase))
+            return Ok(ReceiptService.ToOutput(receipt));
+
+        return File(pdf, "application/pdf", $"{receipt.Number}.pdf");
+    }
 }

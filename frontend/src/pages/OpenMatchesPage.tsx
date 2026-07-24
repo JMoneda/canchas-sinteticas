@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import type { Match } from '../api/types';
@@ -6,6 +6,9 @@ import { useAsync, errorMessage } from '../lib/useAsync';
 import { useAuth } from '../auth/AuthContext';
 import { courtTypeLabel, formatCurrency, formatLongDate } from '../lib/format';
 import { Badge, Button, Card, EmptyState, ErrorBanner, Spinner } from '../components/ui';
+import { PaymentMethodDialog } from '../components/PaymentMethodDialog';
+
+const TERMINAL_STATUSES = new Set(['Paid', 'Rejected', 'Expired', 'Failed', 'Refunded']);
 
 export function OpenMatchesPage() {
   const { data, loading, error, reload } = useAsync(() => api.matches.list(), []);
@@ -13,6 +16,67 @@ export function OpenMatchesPage() {
   const navigate = useNavigate();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [payTarget, setPayTarget] = useState<Match | null>(null);
+  const [waitingId, setWaitingId] = useState<string | null>(null);
+  const pollRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) {
+        window.clearInterval(pollRef.current);
+      }
+    };
+  }, []);
+
+  function pollPaymentStatus(paymentId: string, matchId: string) {
+    setWaitingId(matchId);
+    if (pollRef.current) {
+      window.clearInterval(pollRef.current);
+    }
+    pollRef.current = window.setInterval(async () => {
+      try {
+        const status = await api.payments.getStatus(paymentId);
+        if (TERMINAL_STATUSES.has(status.status)) {
+          if (pollRef.current) window.clearInterval(pollRef.current);
+          pollRef.current = null;
+          setWaitingId(null);
+          reload();
+        }
+      } catch {
+        // Reintenta en el siguiente tick.
+      }
+    }, 4000);
+  }
+
+  async function downloadShareReceipt(matchId: string) {
+    setActionError(null);
+    try {
+      await api.matches.downloadShareReceipt(matchId);
+    } catch (e) {
+      setActionError(errorMessage(e));
+    }
+  }
+
+  async function confirmPay(method: string) {
+    const match = payTarget;
+    if (!match) {
+      return;
+    }
+    setBusyId(match.id);
+    setActionError(null);
+    try {
+      const result = await api.matches.payShare(match.id, method, window.location.href);
+      setPayTarget(null);
+      if (result.checkout_url) {
+        window.open(result.checkout_url, '_blank', 'noopener');
+      }
+      pollPaymentStatus(result.payment_id, match.id);
+    } catch (e) {
+      setActionError(errorMessage(e));
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   async function join(match: Match) {
     if (!isAuthenticated) {
@@ -36,19 +100,6 @@ export function OpenMatchesPage() {
     setActionError(null);
     try {
       await api.matches.leave(match.id);
-      reload();
-    } catch (e) {
-      setActionError(errorMessage(e));
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  async function pay(match: Match) {
-    setBusyId(match.id);
-    setActionError(null);
-    try {
-      await api.matches.pay(match.id);
       reload();
     } catch (e) {
       setActionError(errorMessage(e));
@@ -138,12 +189,26 @@ export function OpenMatchesPage() {
                 </span>
                 <div className="flex items-center gap-2">
                   {iOwe && (
-                    <Button size="sm" onClick={() => pay(match)} disabled={busyId === match.id}>
-                      Pagar mi parte
+                    <Button
+                      size="sm"
+                      onClick={() => setPayTarget(match)}
+                      disabled={busyId === match.id || waitingId === match.id}
+                    >
+                      {waitingId === match.id ? 'Procesando…' : 'Pagar mi parte'}
                     </Button>
                   )}
                   {isPlayer && match.split_enabled && myPlayer!.has_paid && (
-                    <Badge className="bg-brand-100 text-brand-800">Pagaste ✓</Badge>
+                    <>
+                      <Badge className="bg-brand-100 text-brand-800">Pagaste ✓</Badge>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => downloadShareReceipt(match.id)}
+                        disabled={busyId === match.id}
+                      >
+                        Comprobante
+                      </Button>
+                    </>
                   )}
                   {isPlayer && !isOrganizer && (
                     <Button size="sm" variant="secondary" onClick={() => leave(match)} disabled={busyId === match.id}>
@@ -161,6 +226,15 @@ export function OpenMatchesPage() {
           );
         })}
       </div>
+
+      {payTarget && (
+        <PaymentMethodDialog
+          amount={payTarget.price_per_player}
+          busy={busyId === payTarget.id}
+          onConfirm={confirmPay}
+          onClose={() => setPayTarget(null)}
+        />
+      )}
     </div>
   );
 }

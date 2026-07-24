@@ -295,6 +295,56 @@ dotnet run
 | Cobertura horaria | 09:00 - 22:00 |
 | Duración mínima | 1 hora |
 | Solapamiento | No permitido |
+
+---
+
+## 💳 Pagos (feature 002-payments-gateway)
+
+Integración de pasarela real (Wompi, detrás de `IPaymentGateway`), pago dividido entre jugadores,
+comprobantes en PDF y reembolsos. **Regla de Dominio 7**: el estado del pago sólo pasa a *aprobado*
+tras la confirmación verificada del proveedor por webhook; nunca de forma optimista.
+
+### Endpoints
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| POST | `/api/reservations/{id}/pay` | Inicia el pago (devuelve `checkout_url`; pago en `processing`). |
+| GET | `/api/payments/{id}` | Consulta el estado del pago (polling). |
+| POST | `/api/payments/webhook` | **Público**; eventos del proveedor (firma verificada + idempotencia). |
+| POST | `/api/matches/{id}/pay-share` | Paga la parte del jugador en un partido con pago dividido. |
+| GET | `/api/reservations/{id}/receipt` | Comprobante (PDF; `?format=json` para datos). |
+| GET | `/api/matches/{id}/players/me/receipt` | Comprobante de la parte del jugador. |
+| DELETE | `/api/reservations/{id}` | Cancela y reembolsa según la política de la sede (`refund_status`). |
+| GET/PUT | `/api/owner/venues/{id}/payment-config` | Modelo de recaudo: `marketplace` o `direct`. |
+
+Métodos soportados (Colombia): `nequi`, `pse`, `bancolombia_transfer`, `bancolombia_button`,
+`bancolombia_qr`, `card`.
+
+### Secretos (no versionar)
+
+```bash
+cd CanchasSinteticas.Api
+dotnet user-secrets set "Payments:Wompi:PrivateKey"      "prv_test_xxx"
+dotnet user-secrets set "Payments:Wompi:EventsSecret"    "events_test_xxx"
+dotnet user-secrets set "Payments:Wompi:IntegritySecret" "integrity_test_xxx"
+```
+
+En producción, por variables de entorno / gestor de secretos. Para recibir webhooks en desarrollo,
+exponer la API local con un túnel HTTPS y registrar `https://<túnel>/api/payments/webhook`.
+
+### Seguridad
+
+- El webhook valida la **firma (SHA-256 + events secret)**; los eventos no auténticos no cambian estado.
+- Procesamiento **idempotente** (`ProcessedWebhookEvent`): reenvíos no duplican cobros ni confirmaciones.
+- Comprobantes accesibles sólo por el titular del pago y el dueño de la sede.
+- Ningún secreto en código ni en logs; el webhook no expone detalles internos.
+
+### Notas de MVP
+
+- Persistencia en memoria: un reinicio pierde pagos `Pending`/`Processing` (reconciliables con el
+  proveedor). Migración a EF Core habilitada por las interfaces `IRepository`.
+- Correo y WhatsApp/SMS: activables por `Payments:Notifications` (adaptador real por conectar).
+- Marketplace: liquida el 100% al dueño; la comisión de plataforma queda fuera del MVP.
 | No-show | Si se cancela con <2h anticipación |
 
 ## 📞 Soporte

@@ -5,7 +5,9 @@ import type {
   CourtAvailability,
   Match,
   OwnerReport,
-  PaymentResult,
+  PaymentInitiation,
+  PaymentStatusResult,
+  VenuePaymentConfig,
   CancelResult,
   Reservation,
   UserProfile,
@@ -71,6 +73,28 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   }
 
   return data as T;
+}
+
+/** Descarga un archivo (p. ej. un PDF) autenticado y dispara la descarga en el navegador. */
+async function downloadFile(path: string, filename: string): Promise<void> {
+  const token = getToken();
+  const response = await fetch(`${BASE_URL}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    const data = text ? JSON.parse(text) : null;
+    throw new ApiError(data?.message ?? 'No se pudo descargar el comprobante.', data?.error_type ?? 'ERROR', response.status);
+  }
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 function query(params: Record<string, string | undefined>): string {
@@ -161,8 +185,17 @@ export const api = {
       }),
     mine: () => request<Reservation[]>('GET', '/reservations'),
     cancel: (id: string) => request<CancelResult>('DELETE', `/reservations/${id}`),
-    pay: (id: string, method: string) =>
-      request<PaymentResult>('POST', `/reservations/${id}/pay`, { method }),
+    pay: (id: string, method: string, returnUrl?: string) =>
+      request<PaymentInitiation>('POST', `/reservations/${id}/pay`, {
+        method,
+        return_url: returnUrl,
+      }),
+    downloadReceipt: (id: string) =>
+      downloadFile(`/reservations/${id}/receipt`, `comprobante-${id}.pdf`),
+  },
+  payments: {
+    getStatus: (paymentId: string) =>
+      request<PaymentStatusResult>('GET', `/payments/${paymentId}`),
   },
   owner: {
     venues: {
@@ -175,6 +208,13 @@ export const api = {
       courts: (venueId: string) => request<Court[]>('GET', `/owner/venues/${venueId}/courts`),
       createCourt: (venueId: string, payload: CreateCourtPayload) =>
         request<Court>('POST', `/owner/venues/${venueId}/courts`, payload),
+      getPaymentConfig: (venueId: string) =>
+        request<VenuePaymentConfig>('GET', `/owner/venues/${venueId}/payment-config`),
+      setPaymentConfig: (venueId: string, settlementMode: string, gatewayMerchantRef?: string) =>
+        request<VenuePaymentConfig>('PUT', `/owner/venues/${venueId}/payment-config`, {
+          settlement_mode: settlementMode,
+          gateway_merchant_ref: gatewayMerchantRef,
+        }),
     },
     courts: {
       update: (courtId: string, payload: CreateCourtPayload) =>
@@ -219,6 +259,12 @@ export const api = {
     open: (payload: OpenMatchPayload) => request<Match>('POST', '/matches', payload),
     join: (id: string) => request<Match>('POST', `/matches/${id}/join`),
     leave: (id: string) => request<Match>('POST', `/matches/${id}/leave`),
-    pay: (id: string) => request<Match>('POST', `/matches/${id}/pay`),
+    payShare: (id: string, method: string, returnUrl?: string) =>
+      request<PaymentInitiation>('POST', `/matches/${id}/pay-share`, {
+        method,
+        return_url: returnUrl,
+      }),
+    downloadShareReceipt: (id: string) =>
+      downloadFile(`/matches/${id}/players/me/receipt`, `comprobante-partido-${id}.pdf`),
   },
 };

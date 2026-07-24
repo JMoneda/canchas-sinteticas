@@ -1,3 +1,4 @@
+using CanchasSinteticas.Domain.Enums;
 using CanchasSinteticas.Domain.ValueObjects;
 
 namespace CanchasSinteticas.Domain.Entities;
@@ -47,6 +48,12 @@ public class Venue
     /// <summary>Indica si la sede está activa y visible en el marketplace.</summary>
     public bool Active { get; set; }
 
+    /// <summary>Modelo de recaudo de la sede: marketplace (por defecto) o cuenta directa del dueño.</summary>
+    public SettlementMode SettlementMode { get; set; }
+
+    /// <summary>Identificador del comercio del dueño en el proveedor (modo cuenta directa).</summary>
+    public string? GatewayMerchantRef { get; set; }
+
     /// <summary>Fecha de alta.</summary>
     public DateTime CreatedAt { get; }
 
@@ -65,7 +72,9 @@ public class Venue
         TimeOnly closingTime,
         int cancellationWindowHours,
         bool active,
-        DateTime createdAt)
+        DateTime createdAt,
+        SettlementMode settlementMode = SettlementMode.Marketplace,
+        string? gatewayMerchantRef = null)
     {
         Id = id;
         OwnerId = ownerId;
@@ -80,6 +89,8 @@ public class Venue
         ClosingTime = closingTime;
         CancellationWindowHours = cancellationWindowHours;
         Active = active;
+        SettlementMode = settlementMode;
+        GatewayMerchantRef = gatewayMerchantRef;
         CreatedAt = createdAt;
     }
 }

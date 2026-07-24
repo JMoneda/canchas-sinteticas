@@ -22,6 +22,8 @@ public class ReservationService(
     IPriceRuleRepository prices,
     IBlackoutRepository blackouts,
     IPaymentRepository payments,
+    IPaymentGateway gateway,
+    IPaymentGatewayCredentialsResolver credentials,
     IClock clock)
 {
     private const string WalkInClientId = "walk-in";
@@ -90,8 +92,8 @@ public class ReservationService(
             .ToList();
     }
 
-    /// <summary>Cancela una reserva del cliente aplicando la política de la sede.</summary>
-    public CancelOutput Cancel(string clientId, string reservationId)
+    /// <summary>Cancela una reserva del cliente aplicando la política de la sede y el reembolso.</summary>
+    public async Task<CancelOutput> CancelAsync(string clientId, string reservationId)
     {
         var reservation = reservations.GetById(reservationId) ?? throw new NotFoundError();
         if (reservation.ClientId != clientId)
@@ -105,16 +107,33 @@ public class ReservationService(
         reservation.Cancel(isLate);
         reservations.Update(reservation);
 
-        var refunded = false;
+        // Cancelación no tardía sobre un pago aprobado → reembolso real por el proveedor.
+        var refundStatus = "none";
         var payment = payments.GetByReservation(reservationId);
         if (payment is not null && payment.Status == PaymentStatus.Paid && !isLate)
         {
-            payment.Refund();
+            payment.RequestRefund();
             payments.Update(payment);
-            refunded = true;
+            refundStatus = "refund_requested";
+
+            if (venue is not null)
+            {
+                try
+                {
+                    var result = await gateway.RefundAsync(
+                        payment.GatewayTransactionId ?? payment.Id, payment.Amount, credentials.Resolve(venue));
+                    payment.ConfirmRefund(result.RefundReference);
+                    payments.Update(payment);
+                    refundStatus = "refunded";
+                }
+                catch (Exception)
+                {
+                    // Queda solicitado; se confirma por el webhook de reembolso.
+                }
+            }
         }
 
-        return new CancelOutput(reservation.Id, reservation.Status.ToString(), isLate, refunded);
+        return new CancelOutput(reservation.Id, reservation.Status.ToString(), isLate, refundStatus != "none", refundStatus);
     }
 
     private TimeSlot BuildSlot(string date, string startTime, string endTime) =>
@@ -133,6 +152,10 @@ public class ReservationService(
         EnsureFree(court.Id, slot);
 
         var price = PricingCalculator.Calculate(slot.Date, slot.StartTime, slot.EndTime, prices.GetByCourt(court.Id));
+
+        // Las reservas online quedan pendientes de pago (retienen la franja) hasta la confirmación del
+        // proveedor; las manuales (efectivo en sede) nacen confirmadas.
+        var pendingPayment = channel == ReservationChannel.Online;
         var reservation = new Reservation(
             Guid.NewGuid().ToString(),
             court.Id,
@@ -144,7 +167,8 @@ public class ReservationService(
             slot.EndTime,
             price,
             channel,
-            clock.Now);
+            clock.Now,
+            pendingPayment);
         reservations.Add(reservation);
 
         var payment = new Payment(

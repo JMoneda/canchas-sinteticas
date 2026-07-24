@@ -29,9 +29,15 @@ public class InMemoryDatabase
     /// <summary>Reservas por id.</summary>
     public ConcurrentDictionary<string, Reservation> Reservations { get; } = new();
 
-    /// <summary>Pagos indexados por ReservationId (relación 1:1 reserva↔pago).</summary>
+    /// <summary>Pagos indexados por su identificador (una reserva puede tener varias partes).</summary>
     public ConcurrentDictionary<string, Payment> Payments { get; } = new();
 
     /// <summary>Partidos abiertos por id.</summary>
     public ConcurrentDictionary<string, Match> Matches { get; } = new();
+
+    /// <summary>Eventos de webhook ya procesados, indexados por id de evento (idempotencia).</summary>
+    public ConcurrentDictionary<string, ProcessedWebhookEvent> ProcessedWebhookEvents { get; } = new();
+
+    /// <summary>Comprobantes por id.</summary>
+    public ConcurrentDictionary<string, Receipt> Receipts { get; } = new();
 }

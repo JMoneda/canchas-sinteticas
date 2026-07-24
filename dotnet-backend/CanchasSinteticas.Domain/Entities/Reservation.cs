@@ -44,7 +44,11 @@ public class Reservation
     /// <summary>Fecha y hora de creación.</summary>
     public DateTime CreatedAt { get; }
 
-    /// <summary>Crea una reserva confirmada.</summary>
+    /// <summary>
+    /// Crea una reserva. Si <paramref name="pendingPayment"/> es verdadero queda en estado
+    /// <see cref="ReservationStatus.Pending"/> (retiene la franja hasta confirmar el pago);
+    /// de lo contrario nace confirmada (p. ej. reservas manuales pagadas en efectivo).
+    /// </summary>
     public Reservation(
         string id,
         string courtId,
@@ -56,7 +60,8 @@ public class Reservation
         TimeOnly endTime,
         decimal totalPrice,
         ReservationChannel channel,
-        DateTime createdAt)
+        DateTime createdAt,
+        bool pendingPayment = false)
     {
         Id = id;
         CourtId = courtId;
@@ -67,7 +72,7 @@ public class Reservation
         StartTime = startTime;
         EndTime = endTime;
         TotalPrice = totalPrice;
-        Status = ReservationStatus.Confirmed;
+        Status = pendingPayment ? ReservationStatus.Pending : ReservationStatus.Confirmed;
         Channel = channel;
         CreatedAt = createdAt;
     }
@@ -75,8 +80,15 @@ public class Reservation
     /// <summary>Fecha y hora de inicio combinadas.</summary>
     public DateTime StartDateTime => Date.ToDateTime(StartTime);
 
-    /// <summary>Indica si la reserva está vigente (confirmada).</summary>
-    public bool IsActive => Status == ReservationStatus.Confirmed;
+    /// <summary>Indica si la reserva retiene la franja (confirmada o pendiente de pago).</summary>
+    public bool IsActive => Status is ReservationStatus.Confirmed or ReservationStatus.Pending;
+
+    /// <summary>Confirma una reserva pendiente tras la aprobación del pago.</summary>
+    public void Confirm()
+    {
+        if (Status == ReservationStatus.Pending)
+            Status = ReservationStatus.Confirmed;
+    }
 
     /// <summary>
     /// Cancela la reserva. Si <paramref name="isLate"/> es verdadero (fuera del plazo

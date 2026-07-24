@@ -15,7 +15,7 @@ public class InMemoryReservationRepository(InMemoryDatabase db) : IReservationRe
     public IReadOnlyList<Reservation> GetActiveByClient(string clientId, DateTime now) =>
         db.Reservations.Values
             .Where(r => r.ClientId == clientId
-                && r.Status == ReservationStatus.Confirmed
+                && r.IsActive
                 && r.StartDateTime >= now)
             .OrderBy(r => r.StartDateTime)
             .ToList();
@@ -31,7 +31,7 @@ public class InMemoryReservationRepository(InMemoryDatabase db) : IReservationRe
         db.Reservations.Values
             .Where(r => r.CourtId == courtId
                 && r.Date == date
-                && r.Status == ReservationStatus.Confirmed)
+                && r.IsActive)
             .ToList();
 
     /// <inheritdoc/>
@@ -44,7 +44,7 @@ public class InMemoryReservationRepository(InMemoryDatabase db) : IReservationRe
     public int CountActiveByClient(string clientId, DateTime now) =>
         db.Reservations.Values
             .Count(r => r.ClientId == clientId
-                && r.Status == ReservationStatus.Confirmed
+                && r.IsActive
                 && r.StartDateTime >= now);
 
     /// <inheritdoc/>

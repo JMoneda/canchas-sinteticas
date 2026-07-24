@@ -10,7 +10,8 @@ namespace CanchasSinteticas.Api.Controllers;
 [Authorize(Roles = "Owner")]
 public class OwnerVenuesController(
     VenueService venues,
-    CourtService courts) : ApiControllerBase
+    CourtService courts,
+    VenuePaymentConfigService paymentConfig) : ApiControllerBase
 {
     /// <summary>Lista las sedes del dueño autenticado.</summary>
     [HttpGet]
@@ -50,4 +51,19 @@ public class OwnerVenuesController(
     [ProducesResponseType(typeof(CourtOutput), 201)]
     public IActionResult CreateCourt(string venueId, [FromBody] CreateCourtInput input) =>
         StatusCode(201, courts.Create(CurrentUserId, venueId, input));
+
+    /// <summary>Obtiene el modelo de recaudo de una sede del dueño.</summary>
+    [HttpGet("{venueId}/payment-config")]
+    [ProducesResponseType(typeof(VenuePaymentConfigOutput), 200)]
+    public IActionResult GetPaymentConfig(string venueId) =>
+        Ok(paymentConfig.Get(CurrentUserId, venueId));
+
+    /// <summary>Define el modelo de recaudo de una sede (marketplace o cuenta directa).</summary>
+    [HttpPut("{venueId}/payment-config")]
+    [ProducesResponseType(typeof(VenuePaymentConfigOutput), 200)]
+    [ProducesResponseType(403)]
+    [ProducesResponseType(404)]
+    [ProducesResponseType(422)]
+    public IActionResult SetPaymentConfig(string venueId, [FromBody] VenuePaymentConfigInput input) =>
+        Ok(paymentConfig.Set(CurrentUserId, venueId, input));
 }

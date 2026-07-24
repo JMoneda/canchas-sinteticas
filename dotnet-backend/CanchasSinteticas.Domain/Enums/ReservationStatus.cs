@@ -5,6 +5,9 @@ namespace CanchasSinteticas.Domain.Enums;
 /// </summary>
 public enum ReservationStatus
 {
+    /// <summary>Reserva pendiente de pago: retiene la franja pero aún no está confirmada.</summary>
+    Pending,
+
     /// <summary>Reserva confirmada y vigente.</summary>
     Confirmed,
 

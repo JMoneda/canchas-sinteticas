@@ -14,14 +14,9 @@ public class ReportService(
     IVenueRepository venues,
     ICourtRepository courts,
     IReservationRepository reservations,
+    IPaymentRepository payments,
     IClock clock)
 {
-    private static readonly ReservationStatus[] RevenueStatuses =
-    [
-        ReservationStatus.Confirmed,
-        ReservationStatus.Completed,
-        ReservationStatus.NoShow,
-    ];
 
     /// <summary>Calcula el reporte del dueño en el rango indicado (por defecto, últimos 30 días).</summary>
     public OwnerReportOutput GetOwnerReport(string ownerId, DateOnly? from, DateOnly? to)
@@ -53,7 +48,11 @@ public class ReportService(
                 {
                     if (reservation.Date < fromDate || reservation.Date > toDate)
                         continue;
-                    if (!RevenueStatuses.Contains(reservation.Status))
+
+                    // Solo cuenta como ingreso el dinero realmente cobrado (pago aprobado y no reembolsado),
+                    // atribuido a la sede/dueño (FR-028). Pendientes, expirados y reembolsados no suman.
+                    var payment = payments.GetByReservation(reservation.Id);
+                    if (payment is null || payment.Status != PaymentStatus.Paid)
                         continue;
 
                     courtReservations++;

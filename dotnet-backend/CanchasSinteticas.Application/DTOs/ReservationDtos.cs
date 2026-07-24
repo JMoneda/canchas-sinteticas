@@ -41,4 +41,5 @@ public record CancelOutput(
     string ReservationId,
     string Status,
     bool NoShow,
-    bool Refunded);
+    bool Refunded,
+    string RefundStatus);

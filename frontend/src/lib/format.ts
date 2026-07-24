@@ -27,6 +27,7 @@ export const courtTypeOptions: { value: CourtType; label: string }[] = (
 ).map((value) => ({ value, label: courtTypeLabels[value] }));
 
 const reservationStatusLabels: Record<ReservationStatus, string> = {
+  Pending: 'Pendiente de pago',
   Confirmed: 'Confirmada',
   Cancelled: 'Cancelada',
   Completed: 'Completada',
@@ -41,6 +42,8 @@ export function reservationStatusClasses(status: ReservationStatus): string {
   switch (status) {
     case 'Confirmed':
       return 'bg-brand-100 text-brand-800';
+    case 'Pending':
+      return 'bg-amber-100 text-amber-700';
     case 'Completed':
       return 'bg-sky-100 text-sky-800';
     case 'Cancelled':
@@ -51,6 +54,16 @@ export function reservationStatusClasses(status: ReservationStatus): string {
       return 'bg-slate-200 text-slate-600';
   }
 }
+
+/** Métodos de pago disponibles en el checkout (Colombia). */
+export const paymentMethodOptions: { value: string; label: string }[] = [
+  { value: 'nequi', label: 'Nequi' },
+  { value: 'pse', label: 'PSE (débito bancario)' },
+  { value: 'bancolombia_transfer', label: 'Transferencia Bancolombia' },
+  { value: 'bancolombia_button', label: 'Botón Bancolombia' },
+  { value: 'bancolombia_qr', label: 'Bancolombia QR' },
+  { value: 'card', label: 'Tarjeta de crédito/débito' },
+];
 
 export function slotStatusClasses(status: SlotStatus): string {
   switch (status) {

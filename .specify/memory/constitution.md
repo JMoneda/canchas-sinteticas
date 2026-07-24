@@ -1,25 +1,34 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: (template) → 1.0.0 (initial ratification)
+Version change: 1.0.0 → 1.1.0 (MINOR)
 
-Added sections:
-  - Core Principles (5 principles)
-  - Backend & Frontend Constraints
-  - Domain Rules
-  - Testing Standards
-  - Governance
+Rationale: Technical Constraints rewritten to reflect the ACTUAL stack (.NET Clean
+Architecture + in-memory persistence + React/TS/Tailwind/Vite) instead of the previously
+documented Python/FastAPI/SQLite. One new domain rule added (Rule 7 — payment confirmation
+must come from the provider). Core Principles are unchanged. Per the versioning policy, a
+new domain rule and materially expanded/changed constraints constitute a MINOR bump.
 
-Modified principles: N/A (first version)
-Removed sections: N/A (first version)
+Modified sections:
+  - Technical Constraints → Backend: Python/FastAPI/SQLite/SQLAlchemy → C#/.NET Clean
+    Architecture, ASP.NET Core Web API, in-memory persistence (IRepository → EF Core later),
+    JWT, PBKDF2, multi-tenant by OwnerId.
+  - Technical Constraints → Frontend: React + TypeScript + Vite + Tailwind; state via
+    useState/useReducer + React Context for auth/cross-cutting state (Redux still prohibited).
+
+Added:
+  - Domain Rule 7: reservation "paid" status may only be set after payment-provider
+    confirmation (never optimistically).
+
+Removed sections: N/A
 
 Templates checked:
-  - .specify/templates/plan-template.md  ✅ Constitution Check section is generic — compatible
-  - .specify/templates/spec-template.md  ✅ User story / acceptance criteria format aligns with domain rules
-  - .specify/templates/tasks-template.md ✅ Phase structure aligns with TDD and layered architecture
-  - .specify/templates/checklist-template.md ⚠️ pending — review once first feature checklist is generated
+  - .specify/templates/plan-template.md   ✅ Constitution Check section is generic — compatible
+  - .specify/templates/spec-template.md   ✅ User story / acceptance format aligns — no change
+  - .specify/templates/tasks-template.md  ✅ Phase structure aligns with TDD + layered arch
+  - .specify/templates/checklist-template.md ✅ generic — compatible
 
-Follow-up TODOs: None — all fields resolved from provided specification.
+Follow-up TODOs: None.
 -->
 
 # Canchas Sintéticas Constitution
@@ -64,14 +73,16 @@ Backend API endpoints SHOULD have basic integration tests. No domain rule is con
 complete until its unit tests pass. Test coverage of domain logic MUST be exhaustive —
 every rule in Section 3 (Domain Rules) MUST have a corresponding test.
 
-**Rationale**: Domain rules for reservations have subtle edge cases (overlap detection,
-advance notice, concurrent limits). Tests are the only reliable way to enforce them.
+**Rationale**: Domain rules for reservations and payments have subtle edge cases (overlap
+detection, advance notice, concurrent limits, asynchronous payment confirmation). Tests are
+the only reliable way to enforce them.
 
 ### V. MVP Scope Discipline
 
-Only features explicitly listed in this constitution MUST be built. Any addition that
-goes beyond the MVP scope (Section 2) MUST be explicitly deferred and documented.
-Scope creep MUST be rejected at specification and review time.
+Only features explicitly listed in this constitution or in an approved feature
+specification MUST be built. Any addition that goes beyond the agreed MVP scope MUST be
+explicitly deferred and documented. Scope creep MUST be rejected at specification and
+review time.
 
 **Rationale**: Production quality on a small scope delivers more value than partial
 quality on a large scope. The MVP boundary is intentional.
@@ -80,46 +91,59 @@ quality on a large scope. The MVP boundary is intentional.
 
 ### Backend
 
-- **Language**: Python
-- **Framework**: FastAPI (allowed, keep minimal) or none
-- **Persistence**: SQLite ONLY — no Postgres, no external databases
-- **ORM**: SQLAlchemy (allowed but MUST remain simple — no complex relationships,
-  no lazy-loading chains)
-- **Architecture**: No microservices. No message queues. Single deployable unit.
+- **Language**: C# / .NET
+- **Architecture**: Clean Architecture across four projects —
+  `CanchasSinteticas.Domain`, `CanchasSinteticas.Application`,
+  `CanchasSinteticas.Infrastructure`, `CanchasSinteticas.Api`
+  (solution `CanchasSinteticas.slnx`). Dependencies point inward only.
+- **API**: ASP.NET Core Web API. JSON serialized in **snake_case**. Swagger for
+  documentation. No microservices, no message queues — single deployable unit.
+- **Persistence**: **In-memory** (`InMemoryDatabase` backed by `ConcurrentDictionary`,
+  registered as a singleton). All data access MUST go through `IRepository`
+  abstractions in the Domain layer so a real database (EF Core) can be plugged in later
+  **without changing Domain or Application code**. No persistence detail may leak inward.
+- **Authentication**: JWT Bearer (HMAC-SHA256). Password hashing with PBKDF2. Secrets and
+  signing keys MUST come from configuration, never hardcoded in source.
+- **Authorization / Multi-tenancy**: Role-based (`SuperAdmin`, `Owner`, `Client`).
+  Tenant isolation is logical, rooted at `OwnerId` (Owner → Venue → Court). Ownership
+  checks MUST be centralized and applied on every owner-scoped resource.
 
 ### Frontend
 
-- **Framework**: React (MUST be used)
-- **State management**: `useState` / `useReducer` ONLY — Redux and external state
-  libraries are prohibited
+- **Framework**: React + TypeScript, built with Vite. Styling with Tailwind CSS. SPA.
+- **State management**: `useState` / `useReducer` for local state and **React Context**
+  for cross-cutting concerns such as authentication. Redux and other external global
+  state libraries are prohibited (unjustified complexity for this MVP).
 - **Required capabilities**:
-  - Create a reservation
-  - View existing reservations
-  - Display and handle validation errors returned from the backend
+  - Create and view reservations
+  - Complete a payment and view its result/receipt
+  - Display and handle validation and error responses returned from the backend
 
 ## Domain Rules (STRICT — NON-NEGOTIABLE)
 
 These rules MUST be enforced in the domain layer and MUST have unit tests:
 
-1. A field CANNOT have two reservations that overlap in the same time slot.
+1. A court CANNOT have two reservations that overlap in the same time slot.
 2. Reservations MUST be a minimum of 1 hour and scheduled in 30-minute blocks.
-3. Operating hours are 6:00 AM to 11:00 PM — no reservation may start or end
-   outside this window.
-4. A reservation CANNOT be created with less than 1 hour of advance notice from
-   the current time.
+3. Operating hours are defined per venue — no reservation may start or end outside the
+   venue's opening/closing window.
+4. A reservation CANNOT be created with less than 1 hour of advance notice from the
+   current time.
 5. A user CANNOT hold more than 2 active reservations simultaneously.
-6. A cancellation made with less than 2 hours of advance notice MUST be recorded
-   as a "no-show" in addition to the cancellation.
+6. A cancellation made with less than the venue's cancellation-window notice MUST be
+   treated as a late cancellation (no refund) in addition to the cancellation.
+7. A reservation (or a split-payment share) MUST only be marked as **paid** after the
+   payment provider confirms the transaction as approved — never optimistically and never
+   before receiving a verified provider confirmation.
 
 ## Testing Standards
 
-- Domain rules (Section 3) MUST each have dedicated unit tests — written first,
-  confirmed failing, then implemented.
-- Backend API endpoints SHOULD have basic integration tests covering happy path
-  and key error cases.
+- Domain rules (Section "Domain Rules") MUST each have dedicated unit tests — written
+  first, confirmed failing, then implemented.
+- Backend API endpoints SHOULD have basic integration tests covering happy path and key
+  error cases.
 - Any business logic not covered by a test is considered incomplete.
-- Test files MUST live alongside or co-located with the code they test following
-  the structure defined in each feature's `plan.md`.
+- Test files MUST follow the structure defined in each feature's `plan.md`.
 
 ## Governance
 
@@ -141,11 +165,11 @@ When any guideline conflicts with this document, this document wins.
 
 **Versioning policy**:
 - MAJOR: Removal or incompatible redefinition of an existing principle or domain rule.
-- MINOR: New principle, section, or domain rule added.
+- MINOR: New principle, section, or domain rule added, or a material change to constraints.
 - PATCH: Clarifications, wording, or non-semantic refinements.
 
 **Compliance review**: Every `plan.md` MUST include a Constitution Check that verifies
 the feature design against all five principles and all domain rules before Phase 0
 research begins.
 
-**Version**: 1.0.0 | **Ratified**: 2026-06-25 | **Last Amended**: 2026-06-25
+**Version**: 1.1.0 | **Ratified**: 2026-06-25 | **Last Amended**: 2026-07-24

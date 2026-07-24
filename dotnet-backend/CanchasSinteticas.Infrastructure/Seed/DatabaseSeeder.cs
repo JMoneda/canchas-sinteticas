@@ -62,10 +62,10 @@ public static class DatabaseSeeder
         AddReservation(db, "res-2", "court-4", "client-1", tomorrow, new TimeOnly(20, 0), new TimeOnly(21, 0), now);
 
         // Partido abierto de ejemplo (con pago dividido) sobre la reserva res-1.
-        var res1Total = db.Reservations["res-1"].TotalPrice;
+        var res1 = db.Reservations["res-1"];
         var match = new Match(
-            "match-1", "res-1", "client-1", 10, true, Math.Round(res1Total / 10),
-            "Nivel intermedio · faltan jugadores", now);
+            "match-1", "res-1", "client-1", 10, true, res1.TotalPrice,
+            "Nivel intermedio · faltan jugadores", res1.StartDateTime, now);
         match.Join("client-1", "Carlos Ruiz", now);
         db.Matches["match-1"] = match;
     }
@@ -130,7 +130,8 @@ public static class DatabaseSeeder
         db.Reservations[id] = new Reservation(
             id, courtId, clientId, null, null, date, start, end, price, ReservationChannel.Online, now);
 
-        db.Payments[id] = new Payment(
+        var payment = new Payment(
             $"{id}-payment", id, price, PaymentMethod.OnlineGateway, PaymentStatus.Pending, null, now);
+        db.Payments[payment.Id] = payment;
     }
 }

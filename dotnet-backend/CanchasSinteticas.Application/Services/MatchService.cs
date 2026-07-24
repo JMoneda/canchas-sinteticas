@@ -9,8 +9,8 @@ using CanchasSinteticas.Domain.Repositories;
 namespace CanchasSinteticas.Application.Services;
 
 /// <summary>
-/// Casos de uso de partidos abiertos (matchmaking): abrir un partido a partir de
-/// una reserva, unirse, salir, pagar la parte (split payment) y listar los partidos.
+/// Casos de uso de partidos abiertos (matchmaking): abrir un partido, unirse, salir (con reembolso de
+/// la parte si aplica) y pagar la parte del pago dividido a través de la pasarela real.
 /// </summary>
 public class MatchService(
     IMatchRepository matches,
@@ -19,6 +19,9 @@ public class MatchService(
     IVenueRepository venues,
     IUserRepository users,
     IPaymentRepository payments,
+    IPaymentGateway gateway,
+    IPaymentGatewayCredentialsResolver credentials,
+    PaymentSettings settings,
     ReservationService reservationService,
     IClock clock)
 {
@@ -31,19 +34,17 @@ public class MatchService(
             organizerId,
             new CreateReservationInput(input.CourtId, input.Date, input.StartTime, input.EndTime, input.PaymentMethod));
 
-        var pricePerPlayer = input.Split && input.MaxPlayers > 0
-            ? Math.Round(reservation.TotalPrice / input.MaxPlayers, MidpointRounding.AwayFromZero)
-            : 0m;
+        var reservationEntity = reservations.GetById(reservation.Id) ?? throw new NotFoundError();
 
-        var notes = string.IsNullOrWhiteSpace(input.Notes) ? null : input.Notes.Trim();
         var match = new Match(
             Guid.NewGuid().ToString(),
             reservation.Id,
             organizerId,
             input.MaxPlayers,
             input.Split,
-            pricePerPlayer,
-            notes,
+            reservation.TotalPrice,
+            string.IsNullOrWhiteSpace(input.Notes) ? null : input.Notes.Trim(),
+            reservationEntity.StartDateTime,
             clock.Now);
         match.Join(organizerId, user.Name, clock.Now);
         matches.Add(match);
@@ -62,24 +63,75 @@ public class MatchService(
         return BuildOutput(match);
     }
 
-    /// <summary>Quita al usuario autenticado de un partido.</summary>
-    public MatchOutput Leave(string userId, string matchId)
+    /// <summary>Quita al usuario de un partido; si ya había pagado su parte, la reembolsa (FR-018).</summary>
+    public async Task<MatchOutput> LeaveAsync(string userId, string matchId)
     {
         var match = matches.GetById(matchId) ?? throw new NotFoundError();
+
+        var payment = payments.GetByMatchAndPayer(matchId, userId);
+        if (payment is not null && payment.Status == PaymentStatus.Paid)
+            await RefundShareAsync(match, payment);
+
         match.Leave(userId);
         matches.Update(match);
         return BuildOutput(match);
     }
 
-    /// <summary>Paga (simulado) la parte del usuario autenticado en un partido con split.</summary>
-    public MatchOutput PayShare(string userId, string matchId)
+    /// <summary>Inicia el pago de la parte del usuario en un partido con pago dividido.</summary>
+    public async Task<PaymentInitiationOutput> PayShareAsync(string userId, string matchId, PayInput input)
     {
         var match = matches.GetById(matchId) ?? throw new NotFoundError();
-        match.PayShare(userId);
+        var player = match.PlayerOf(userId);
+        if (!match.SplitEnabled)
+            throw new ValidationError("Este partido no tiene pago dividido.");
+
+        var existing = payments.GetByMatchAndPayer(matchId, userId);
+        if (existing is not null)
+        {
+            if (existing.Status == PaymentStatus.Paid)
+                throw new InvalidPaymentTransitionError("Ya pagaste tu parte de este partido.");
+            if (existing.Status == PaymentStatus.Processing)
+                return Initiation(existing); // idempotente: reutiliza el checkout en curso
+        }
+
+        var method = Parsing.ParsePaymentMethod(input.Method);
+        var reservation = reservations.GetById(match.ReservationId) ?? throw new NotFoundError();
+        var venue = VenueOf(reservation) ?? throw new VenueNotFoundError();
+        var email = users.GetById(userId)?.Email;
+        var expiresAt = clock.Now.AddMinutes(settings.ExpiryMinutes);
+
+        var payment = new Payment(
+            Guid.NewGuid().ToString(),
+            match.ReservationId,
+            player.ShareAmount,
+            method,
+            PaymentStatus.Pending,
+            null,
+            clock.Now,
+            matchId: matchId,
+            payerUserId: userId);
+        payments.Add(payment);
+
+        GatewayTransactionResult tx;
+        try
+        {
+            tx = await gateway.CreateTransactionAsync(new CreateTransactionRequest(
+                payment.Id, payment.Id, payment.Amount, method, email, input.ReturnUrl, credentials.Resolve(venue)));
+        }
+        catch (PaymentGatewayError)
+        {
+            payment.Fail("gateway_error_on_create");
+            payments.Update(payment);
+            throw;
+        }
+
+        payment.StartProcessing(tx.TransactionId, tx.CheckoutUrl, expiresAt, method);
+        payments.Update(payment);
+
+        match.AttachSharePayment(userId, payment.Id);
         matches.Update(match);
 
-        SettleReservationIfCovered(match);
-        return BuildOutput(match);
+        return Initiation(payment);
     }
 
     /// <summary>Devuelve el detalle de un partido.</summary>
@@ -119,20 +171,40 @@ public class MatchService(
             .ToList();
     }
 
-    // Cuando las partes cubren el total de la reserva, se marca el pago de la reserva como realizado.
-    private void SettleReservationIfCovered(Match match)
+    private async Task RefundShareAsync(Match match, Payment payment)
     {
         var reservation = reservations.GetById(match.ReservationId);
-        var payment = payments.GetByReservation(match.ReservationId);
-        if (reservation is null || payment is null || payment.Status == PaymentStatus.Paid)
-            return;
+        var venue = reservation is null ? null : VenueOf(reservation);
 
-        if (match.AmountCollected >= reservation.TotalPrice)
+        payment.RequestRefund();
+        payments.Update(payment);
+
+        if (venue is not null)
         {
-            payment.MarkPaid($"SPLIT-{match.Id[..8].ToUpperInvariant()}");
-            payments.Update(payment);
+            try
+            {
+                var result = await gateway.RefundAsync(
+                    payment.GatewayTransactionId ?? payment.Id, payment.Amount, credentials.Resolve(venue));
+                payment.ConfirmRefund(result.RefundReference);
+                payments.Update(payment);
+            }
+            catch (Exception)
+            {
+                // El reembolso queda solicitado; se reconciliará por el webhook de reembolso.
+            }
         }
     }
+
+    private Venue? VenueOf(Reservation reservation)
+    {
+        var court = courts.GetById(reservation.CourtId);
+        return court is null ? null : venues.GetById(court.VenueId);
+    }
+
+    private PaymentInitiationOutput Initiation(Payment payment) =>
+        new(payment.Id, payment.ReservationId, payment.Status.ToString(), payment.Amount,
+            payment.Method.ToString(), payment.CheckoutUrl,
+            payment.ExpiresAt?.ToString("s"));
 
     private MatchOutput BuildOutput(Match match)
     {
@@ -155,7 +227,7 @@ public class MatchService(
             reservation is null ? string.Empty : Mappers.Date(reservation.Date),
             reservation is null ? string.Empty : Mappers.Time(reservation.StartTime),
             reservation is null ? string.Empty : Mappers.Time(reservation.EndTime),
-            reservation?.TotalPrice ?? 0m,
+            match.TotalPrice,
             match.MaxPlayers,
             match.SpotsLeft,
             match.SplitEnabled,

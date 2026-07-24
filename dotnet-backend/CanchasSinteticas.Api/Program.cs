@@ -2,11 +2,15 @@ using System.Reflection;
 using System.Security.Claims;
 using System.Text;
 using CanchasSinteticas.Api.Auth;
+using CanchasSinteticas.Api.BackgroundJobs;
 using CanchasSinteticas.Api.Middleware;
 using CanchasSinteticas.Application.Abstractions;
 using CanchasSinteticas.Application.Services;
 using CanchasSinteticas.Domain.Repositories;
+using CanchasSinteticas.Infrastructure.Notifications;
+using CanchasSinteticas.Infrastructure.Payments;
 using CanchasSinteticas.Infrastructure.Persistence;
+using CanchasSinteticas.Infrastructure.Receipts;
 using CanchasSinteticas.Infrastructure.Repositories;
 using CanchasSinteticas.Infrastructure.Security;
 using CanchasSinteticas.Infrastructure.Seed;
@@ -27,11 +31,29 @@ builder.Services.AddSingleton<IBlackoutRepository, InMemoryBlackoutRepository>()
 builder.Services.AddSingleton<IReservationRepository, InMemoryReservationRepository>();
 builder.Services.AddSingleton<IPaymentRepository, InMemoryPaymentRepository>();
 builder.Services.AddSingleton<IMatchRepository, InMemoryMatchRepository>();
+builder.Services.AddSingleton<IProcessedWebhookEventRepository, InMemoryProcessedWebhookEventRepository>();
+builder.Services.AddSingleton<IReceiptRepository, InMemoryReceiptRepository>();
 
 // --- Servicios de infraestructura ---
 builder.Services.AddSingleton<IClock, SystemClock>();
 builder.Services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
 builder.Services.AddSingleton<ITokenService, JwtTokenService>();
+
+// --- Pagos (pasarela, webhook, notificaciones, expiración) ---
+var paymentsOptions = builder.Configuration.GetSection(PaymentsOptions.SectionName).Get<PaymentsOptions>()
+    ?? new PaymentsOptions();
+builder.Services.AddSingleton(paymentsOptions);
+builder.Services.AddSingleton(new PaymentSettings(paymentsOptions.ExpiryMinutes));
+builder.Services.AddSingleton<WompiSignatureVerifier>();
+builder.Services.AddSingleton<IPaymentWebhookVerifier, WompiWebhookVerifier>();
+builder.Services.AddSingleton<IPaymentGatewayCredentialsResolver, PaymentGatewayCredentialsResolver>();
+builder.Services.AddSingleton<InAppNotifier>();
+builder.Services.AddSingleton<EmailNotifier>();
+builder.Services.AddSingleton<WhatsAppSmsNotifier>();
+builder.Services.AddSingleton<INotificationSender, CompositeNotificationSender>();
+builder.Services.AddSingleton<IReceiptGenerator, QuestPdfReceiptGenerator>();
+builder.Services.AddHttpClient<IPaymentGateway, WompiPaymentGateway>();
+builder.Services.AddHostedService<PaymentExpirySweeper>();
 
 // --- Casos de uso (servicios de aplicación) ---
 builder.Services.AddScoped<AuthService>();
@@ -41,6 +63,11 @@ builder.Services.AddScoped<AvailabilityService>();
 builder.Services.AddScoped<ReservationService>();
 builder.Services.AddScoped<BlackoutService>();
 builder.Services.AddScoped<PaymentService>();
+builder.Services.AddScoped<PaymentWebhookService>();
+builder.Services.AddScoped<PaymentExpiryService>();
+builder.Services.AddScoped<MatchSettlementService>();
+builder.Services.AddScoped<ReceiptService>();
+builder.Services.AddScoped<VenuePaymentConfigService>();
 builder.Services.AddScoped<ReportService>();
 builder.Services.AddScoped<MatchService>();
 
@@ -155,3 +182,6 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+/// <summary>Punto de entrada expuesto para pruebas de integración (WebApplicationFactory).</summary>
+public partial class Program;

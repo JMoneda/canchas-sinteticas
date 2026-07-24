@@ -32,6 +32,8 @@ public class DomainExceptionMiddleware(RequestDelegate next)
         [typeof(MatchFullError)] = ("MATCH_FULL", 409),
         [typeof(OrganizerCannotLeaveError)] = ("ORGANIZER_CANNOT_LEAVE", 422),
         [typeof(NotJoinedError)] = ("NOT_JOINED", 422),
+        [typeof(InvalidPaymentTransitionError)] = ("INVALID_PAYMENT_TRANSITION", 409),
+        [typeof(PaymentGatewayError)] = ("PAYMENT_GATEWAY_ERROR", 502),
     };
 
     /// <summary>Ejecuta el siguiente middleware capturando excepciones de dominio.</summary>

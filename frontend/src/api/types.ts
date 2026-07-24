@@ -4,11 +4,28 @@ export type Role = 'SuperAdmin' | 'Owner' | 'Client';
 
 export type CourtType = 'Futbol5' | 'Futbol6' | 'Futbol7' | 'Futbol8' | 'Futbol11';
 
-export type ReservationStatus = 'Confirmed' | 'Cancelled' | 'Completed' | 'NoShow';
+export type ReservationStatus = 'Pending' | 'Confirmed' | 'Cancelled' | 'Completed' | 'NoShow';
 
 export type ReservationChannel = 'Online' | 'Manual';
 
-export type PaymentStatus = 'Pending' | 'Paid' | 'Refunded' | 'Failed';
+export type PaymentStatus =
+  | 'Pending'
+  | 'Processing'
+  | 'Paid'
+  | 'Rejected'
+  | 'Expired'
+  | 'RefundRequested'
+  | 'Refunded'
+  | 'Failed';
+
+/** Métodos de pago reales soportados en Colombia. */
+export type PaymentMethod =
+  | 'nequi'
+  | 'pse'
+  | 'bancolombia_transfer'
+  | 'bancolombia_button'
+  | 'bancolombia_qr'
+  | 'card';
 
 export type SlotStatus = 'available' | 'reserved' | 'blocked' | 'past';
 
@@ -131,6 +148,7 @@ export interface CancelResult {
   status: ReservationStatus;
   no_show: boolean;
   refunded: boolean;
+  refund_status: 'none' | 'refund_requested' | 'refunded';
 }
 
 export interface PaymentResult {
@@ -139,6 +157,36 @@ export interface PaymentResult {
   method: string;
   status: string;
   reference: string | null;
+}
+
+/** Respuesta al iniciar un pago: información de checkout del proveedor. */
+export interface PaymentInitiation {
+  payment_id: string;
+  reservation_id: string;
+  status: string;
+  amount: number;
+  method: string;
+  checkout_url: string | null;
+  expires_at: string | null;
+}
+
+/** Configuración de recaudo de una sede. */
+export interface VenuePaymentConfig {
+  venue_id: string;
+  settlement_mode: 'marketplace' | 'direct';
+  gateway_merchant_ref: string | null;
+}
+
+/** Estado de un pago para consulta/polling. */
+export interface PaymentStatusResult {
+  payment_id: string;
+  reservation_id: string;
+  status: PaymentStatus;
+  amount: number;
+  method: string;
+  gateway_reference: string | null;
+  paid_at: string | null;
+  has_receipt: boolean;
 }
 
 export interface Blackout {

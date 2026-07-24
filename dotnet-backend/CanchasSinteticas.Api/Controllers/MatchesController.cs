@@ -7,7 +7,7 @@ namespace CanchasSinteticas.Api.Controllers;
 
 /// <summary>Partidos abiertos (matchmaking): publicar, unirse y salir.</summary>
 [Route("api/matches")]
-public class MatchesController(MatchService matches) : ApiControllerBase
+public class MatchesController(MatchService matches, ReceiptService receipts) : ApiControllerBase
 {
     /// <summary>Lista los partidos con cupos, opcionalmente por ciudad.</summary>
     [HttpGet]
@@ -36,15 +36,34 @@ public class MatchesController(MatchService matches) : ApiControllerBase
     [ProducesResponseType(409)]
     public IActionResult Join(string matchId) => Ok(matches.Join(CurrentUserId, matchId));
 
-    /// <summary>Quita al usuario autenticado de un partido.</summary>
+    /// <summary>Quita al usuario autenticado de un partido (con reembolso de su parte si ya pagó).</summary>
     [HttpPost("{matchId}/leave")]
     [Authorize]
     [ProducesResponseType(typeof(MatchOutput), 200)]
-    public IActionResult Leave(string matchId) => Ok(matches.Leave(CurrentUserId, matchId));
+    public async Task<IActionResult> Leave(string matchId) => Ok(await matches.LeaveAsync(CurrentUserId, matchId));
 
-    /// <summary>Paga (simulado) la parte del usuario autenticado en un partido con split.</summary>
-    [HttpPost("{matchId}/pay")]
+    /// <summary>Inicia el pago de la parte del usuario en un partido con pago dividido.</summary>
+    [HttpPost("{matchId}/pay-share")]
     [Authorize]
-    [ProducesResponseType(typeof(MatchOutput), 200)]
-    public IActionResult Pay(string matchId) => Ok(matches.PayShare(CurrentUserId, matchId));
+    [ProducesResponseType(typeof(PaymentInitiationOutput), 200)]
+    [ProducesResponseType(404)]
+    [ProducesResponseType(409)]
+    [ProducesResponseType(502)]
+    public async Task<IActionResult> PayShare(string matchId, [FromBody] PayInput input) =>
+        Ok(await matches.PayShareAsync(CurrentUserId, matchId, input));
+
+    /// <summary>Descarga el comprobante de la parte del usuario en un partido (PDF o ?format=json).</summary>
+    [HttpGet("{matchId}/players/me/receipt")]
+    [Authorize]
+    [ProducesResponseType(typeof(ReceiptOutput), 200)]
+    [ProducesResponseType(403)]
+    [ProducesResponseType(404)]
+    public IActionResult ShareReceipt(string matchId, [FromQuery] string? format)
+    {
+        var (receipt, pdf) = receipts.GetShareReceipt(CurrentUserId, matchId);
+        if (string.Equals(format, "json", StringComparison.OrdinalIgnoreCase))
+            return Ok(ReceiptService.ToOutput(receipt));
+
+        return File(pdf, "application/pdf", $"{receipt.Number}.pdf");
+    }
 }

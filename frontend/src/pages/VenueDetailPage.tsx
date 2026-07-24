@@ -12,6 +12,7 @@ import {
   todayIso,
 } from '../lib/format';
 import { Button, Card, ErrorBanner, Field, ModalShell, Spinner, inputClasses } from '../components/ui';
+import { PaymentMethodDialog } from '../components/PaymentMethodDialog';
 
 export function VenueDetailPage() {
   const { venueId = '' } = useParams();
@@ -218,12 +219,12 @@ function BookingModal({ venueName, courtName, courtId, date, slot, onClose, onBo
   const [reservation, setReservation] = useState<Reservation | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [paid, setPaid] = useState(false);
   const [openMatch, setOpenMatch] = useState(false);
   const [maxPlayers, setMaxPlayers] = useState(10);
   const [split, setSplit] = useState(false);
   const [notes, setNotes] = useState('');
   const [matchDone, setMatchDone] = useState(false);
+  const [showPayDialog, setShowPayDialog] = useState(false);
 
   async function confirm() {
     setBusy(true);
@@ -253,15 +254,20 @@ function BookingModal({ venueName, courtName, courtId, date, slot, onClose, onBo
     }
   }
 
-  async function pay() {
+  async function confirmPay(method: string) {
     if (!reservation) {
       return;
     }
     setBusy(true);
     setErr(null);
     try {
-      await api.reservations.pay(reservation.id, 'OnlineGateway');
-      setPaid(true);
+      const result = await api.reservations.pay(reservation.id, method, `${window.location.origin}/reservas`);
+      setShowPayDialog(false);
+      if (result.checkout_url) {
+        // Abre el checkout del proveedor; la confirmación llega por webhook y se ve en "Mis reservas".
+        window.open(result.checkout_url, '_blank', 'noopener');
+      }
+      navigate('/reservas');
     } catch (e) {
       setErr(errorMessage(e));
     } finally {
@@ -356,36 +362,42 @@ function BookingModal({ venueName, courtName, courtId, date, slot, onClose, onBo
           {step === 'done' && reservation && (
             <>
               <div className="text-center">
-                <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-brand-100 text-2xl">
-                  ✅
+                <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-amber-100 text-2xl">
+                  🕒
                 </div>
-                <h3 className="mt-3 text-lg font-semibold text-slate-800">¡Reserva confirmada!</h3>
+                <h3 className="mt-3 text-lg font-semibold text-slate-800">Reserva creada</h3>
                 <p className="text-sm text-slate-500">
                   {courtName} · {slot.start_time}–{slot.end_time}
+                </p>
+                <p className="mt-1 text-sm text-slate-500">
+                  La franja queda reservada mientras completas el pago.
                 </p>
               </div>
               <dl className="mt-4 space-y-2 text-sm">
                 <Row label="Total" value={formatCurrency(reservation.total_price)} strong />
-                <Row label="Pago" value={paid ? 'Pagado ✓' : 'Pendiente'} />
+                <Row label="Pago" value="Pendiente" />
               </dl>
               {err && <div className="mt-3"><ErrorBanner message={err} /></div>}
               <div className="mt-6 flex justify-end gap-2">
-                {!paid ? (
-                  <>
-                    <Button variant="secondary" onClick={onBooked} disabled={busy}>
-                      Pagar luego
-                    </Button>
-                    <Button onClick={pay} disabled={busy}>
-                      {busy ? 'Procesando...' : 'Pagar ahora'}
-                    </Button>
-                  </>
-                ) : (
-                  <Button onClick={onBooked}>Listo</Button>
-                )}
+                <Button variant="secondary" onClick={onBooked} disabled={busy}>
+                  Pagar luego
+                </Button>
+                <Button onClick={() => setShowPayDialog(true)} disabled={busy}>
+                  Pagar ahora
+                </Button>
               </div>
             </>
           )}
       </div>
+
+      {showPayDialog && reservation && (
+        <PaymentMethodDialog
+          amount={reservation.total_price}
+          busy={busy}
+          onConfirm={confirmPay}
+          onClose={() => setShowPayDialog(false)}
+        />
+      )}
     </ModalShell>
   );
 }

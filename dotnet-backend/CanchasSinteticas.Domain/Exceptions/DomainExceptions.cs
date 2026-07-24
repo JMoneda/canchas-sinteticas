@@ -85,3 +85,9 @@ public class OrganizerCannotLeaveError()
 /// <summary>El jugador no está inscrito en el partido.</summary>
 public class NotJoinedError()
     : DomainException("No estás inscrito en este partido.");
+
+/// <summary>La transición de estado del pago solicitada no es válida.</summary>
+public class InvalidPaymentTransitionError(string message) : DomainException(message);
+
+/// <summary>Falló la comunicación con el proveedor de pagos.</summary>
+public class PaymentGatewayError(string message) : DomainException(message);
