@@ -204,7 +204,7 @@ tarde → sin reembolso.
 **Purpose**: Configuración del dueño, canales de notificación adicionales, endurecimiento y validación.
 
 - [X] T058 Implementar `VenuePaymentConfigService` + `PUT /api/owner/venues/{id}/payment-config` (settlement mode + merchant ref) en `dotnet-backend/CanchasSinteticas.Application/Services/VenuePaymentConfigService.cs` y `dotnet-backend/CanchasSinteticas.Api/Controllers/OwnerVenuesController.cs`
-- [ ] T059 [P] Frontend: página del dueño para configurar el modelo de recaudo de la sede en `frontend/src/pages/`
+- [X] T059 [P] Frontend: página del dueño para configurar el modelo de recaudo de la sede en `frontend/src/pages/`
 - [X] T060 [P] Implementar `EmailNotifier` y `WhatsAppSmsNotifier` (activados por config `Payments:Notifications`, con adjunto/enlace al comprobante) en `dotnet-backend/CanchasSinteticas.Infrastructure/Notifications/` y componer los canales en `INotificationSender`
 - [X] T061 [P] Actualizar el README de la API con los nuevos endpoints de pago/webhook/comprobantes
 - [X] T062 Endurecimiento de seguridad: revisar que ningún secreto quede en código/logs, rate-limit básico del webhook, y que el webhook nunca exponga detalles internos

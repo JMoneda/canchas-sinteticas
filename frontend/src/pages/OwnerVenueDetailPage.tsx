@@ -60,6 +60,8 @@ export function OwnerVenueDetailPage() {
         )}
       </div>
 
+      <PaymentConfigSection venueId={venueId} />
+
       {courts.loading && <Spinner />}
       {courts.error && <ErrorBanner message={courts.error} />}
       {actionError && <ErrorBanner message={actionError} />}
@@ -142,6 +144,88 @@ export function OwnerVenueDetailPage() {
       )}
       {blackoutsFor && <BlackoutsModal court={blackoutsFor} onClose={() => setBlackoutsFor(null)} />}
     </div>
+  );
+}
+
+function PaymentConfigSection({ venueId }: { venueId: string }) {
+  const { data, loading, error, reload } = useAsync(() => api.owner.venues.getPaymentConfig(venueId), [venueId]);
+  const [mode, setMode] = useState<'marketplace' | 'direct'>('marketplace');
+  const [merchantRef, setMerchantRef] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+
+  // Sincroniza el formulario con la configuración cargada (una vez por sede).
+  if (data && loadedFor !== venueId) {
+    setMode(data.settlement_mode);
+    setMerchantRef(data.gateway_merchant_ref ?? '');
+    setLoadedFor(venueId);
+  }
+
+  async function save() {
+    setBusy(true);
+    setSaveError(null);
+    setSaved(false);
+    try {
+      await api.owner.venues.setPaymentConfig(venueId, mode, mode === 'direct' ? merchantRef : undefined);
+      setSaved(true);
+      reload();
+    } catch (e) {
+      setSaveError(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card className="p-4">
+      <h2 className="font-semibold text-slate-800">Recaudo de pagos</h2>
+      <p className="text-sm text-slate-500">Define a dónde llega el dinero de los pagos de esta sede.</p>
+
+      {loading && <Spinner />}
+      {error && <ErrorBanner message={error} />}
+
+      {data && (
+        <div className="mt-3 space-y-3">
+          <label className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 ${mode === 'marketplace' ? 'border-brand-500 bg-brand-50' : 'border-slate-200'}`}>
+            <input type="radio" name="settlement" checked={mode === 'marketplace'} onChange={() => setMode('marketplace')} className="mt-1 accent-brand-600" />
+            <span className="text-sm">
+              <span className="font-medium text-slate-800">Marketplace</span>
+              <span className="block text-slate-500">La plataforma recauda y te liquida el 100%.</span>
+            </span>
+          </label>
+
+          <label className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 ${mode === 'direct' ? 'border-brand-500 bg-brand-50' : 'border-slate-200'}`}>
+            <input type="radio" name="settlement" checked={mode === 'direct'} onChange={() => setMode('direct')} className="mt-1 accent-brand-600" />
+            <span className="text-sm">
+              <span className="font-medium text-slate-800">Cuenta directa</span>
+              <span className="block text-slate-500">Recaudas con tu propia cuenta del proveedor.</span>
+            </span>
+          </label>
+
+          {mode === 'direct' && (
+            <Field label="Identificador de comercio (merchant ref)">
+              <input
+                className={inputClasses}
+                value={merchantRef}
+                onChange={(e) => setMerchantRef(e.target.value)}
+                placeholder="MERCHANT-..."
+              />
+            </Field>
+          )}
+
+          {saveError && <ErrorBanner message={saveError} />}
+          {saved && <p className="text-sm text-brand-700">Configuración guardada ✓</p>}
+
+          <div className="flex justify-end">
+            <Button size="sm" onClick={save} disabled={busy || (mode === 'direct' && !merchantRef.trim())}>
+              {busy ? 'Guardando...' : 'Guardar recaudo'}
+            </Button>
+          </div>
+        </div>
+      )}
+    </Card>
   );
 }
 

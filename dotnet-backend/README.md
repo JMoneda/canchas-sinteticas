@@ -1,326 +1,154 @@
-# Canchas Sintéticas API
+# Canchas Sintéticas — API (.NET)
 
-API REST para la gestión de reservas de canchas de fútbol sintético. Permite consultar disponibilidad, crear y cancelar reservas con validaciones automáticas.
+API REST de una **plataforma multi-tenant** para reservar canchas de fútbol sintético: marketplace
+para clientes y panel de gestión para dueños. Incluye pagos reales (pasarela de Colombia), partidos
+abiertos con pago dividido y comprobantes.
 
-## 🚀 Características
+## 🧱 Stack técnico
 
-- **Consultar disponibilidad** de canchas por fecha
-- **Crear reservas** con validaciones automáticas:
-  - Evita solapamiento de reservas
-  - Requiere mínimo 24 horas de anticipación
-  - Máximo 3 reservas activas por usuario
-- **Listar tus reservas** activas y próximas
-- **Cancelar reservas** con registro de no-shows si es tardío
-- **Swagger UI** para probar endpoints interactivamente
+- **.NET 10** · ASP.NET Core Web API
+- **Clean Architecture** en 4 proyectos: `Domain`, `Application`, `Infrastructure`, `Api`
+  (solución `CanchasSinteticas.slnx`)
+- **Persistencia en memoria** (`InMemoryDatabase` con `ConcurrentDictionary`). Las interfaces
+  `IRepository` permiten migrar a EF Core sin tocar `Domain`/`Application`. *No usa SQLite ni una BD
+  externa.*
+- **JWT Bearer** (HMAC-SHA256), contraseñas con **PBKDF2**
+- **JSON en snake_case** · **Swagger/Swashbuckle**
+- **Multi-tenant** por `OwnerId` (Owner → Venue → Court)
+- Pruebas con **xUnit** (`CanchasSinteticas.Tests`)
 
-## 📋 Stack Técnico
+## 🚀 Ejecutar
 
-- **.NET 10** con ASP.NET Core
-- **SQLite** como base de datos
-- **Clean Architecture** (Domain, Application, Infrastructure, API)
-- **Dependency Injection** nativo de ASP.NET Core
-- **Swagger/Swashbuckle** para documentación
-- **CORS** configurado para frontend local
-
-## 🛠️ Instalación y Configuración
-
-### Requisitos previos
-- .NET 10 SDK o superior
-- PowerShell (recomendado) o terminal compatible
-
-### Pasos de instalación
-
-1. **Clonar el repositorio**
-```bash
-git clone https://github.com/JMoneda/canchas-sinteticas.git
-cd canchas-sinteticas
-```
-
-2. **Restaurar dependencias**
 ```bash
 cd dotnet-backend
-dotnet restore
+dotnet run --project CanchasSinteticas.Api    # http://localhost:8080 · Swagger en /swagger
+dotnet test                                   # pruebas de dominio y de aplicación
 ```
 
-3. **Levantar la aplicación**
-```bash
-cd CanchasSinteticas.Api
-dotnet run
-```
+CORS autoriza por defecto el frontend en `http://localhost:5173`.
 
-La API estará disponible en `https://localhost:7001` (o el puerto asignado)
+### Datos de demostración
 
-### Base de datos
+Al arrancar, si el almacén está vacío, se cargan datos de ejemplo. Contraseña de todas las cuentas:
+`password123`.
 
-La base de datos SQLite se crea automáticamente en la primera ejecución con datos de ejemplo:
-- **3 canchas** (Cancha A, Cancha B, Cancha C)
-- **Turnos de 1 hora** de 09:00 a 22:00 (todos los días)
+| Rol | Correo |
+|-----|--------|
+| Owner | `owner1@canchas.co`, `owner2@canchas.co` |
+| Client | `cliente@canchas.co` |
+| SuperAdmin | `admin@canchas.co` |
 
-Para reimportar datos:
-```bash
-dotnet run --reset-db
-```
+Incluye sedes en Bogotá y Medellín con canchas (tarifas diurno/nocturno), reservas de ejemplo y un
+partido abierto con pago dividido.
+
+## 🔐 Autenticación
+
+JWT Bearer. Obtén un token con `POST /api/auth/login` y envíalo como `Authorization: Bearer <token>`.
+Roles: `SuperAdmin`, `Owner`, `Client`.
 
 ## 📡 Endpoints
 
-### 1. Consultar Disponibilidad
+### Auth
+| Método | Ruta | Acceso | Descripción |
+|--------|------|--------|-------------|
+| POST | `/api/auth/register` | público | Registra cuenta (Owner/Client) y devuelve token |
+| POST | `/api/auth/login` | público | Inicia sesión |
+| GET | `/api/auth/me` | autenticado | Perfil del usuario |
 
-```http
-GET /api/fields/availability?date=2025-02-15
-```
+### Marketplace (cliente)
+| Método | Ruta | Acceso | Descripción |
+|--------|------|--------|-------------|
+| GET | `/api/venues?city=` | público | Busca sedes activas (opcional por ciudad) |
+| GET | `/api/venues/{id}` | público | Detalle de sede con sus canchas |
+| GET | `/api/courts/{id}/availability?date=` | público | Slots de una cancha para una fecha |
 
-**Parámetros:**
-- `date` (string, required): Fecha en formato `YYYY-MM-DD`
+### Reservas (cliente)
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| POST | `/api/reservations` | Crea una reserva (queda `pending` de pago) |
+| GET | `/api/reservations` | Lista las reservas del cliente |
+| POST | `/api/reservations/{id}/pay` | Inicia el pago (devuelve `checkout_url`) |
+| GET | `/api/reservations/{id}/receipt` | Comprobante (PDF; `?format=json` para datos) |
+| DELETE | `/api/reservations/{id}` | Cancela y reembolsa según política (`refund_status`) |
 
-**Respuesta (200):**
-```json
-[
-  {
-    "field_id": "field-1",
-    "field_name": "Cancha A",
-    "available_slots": [
-      { "time": "09:00", "is_available": true },
-      { "time": "10:00", "is_available": false },
-      { "time": "11:00", "is_available": true }
-    ]
-  }
-]
-```
+### Pagos
+| Método | Ruta | Acceso | Descripción |
+|--------|------|--------|-------------|
+| GET | `/api/payments/{id}` | titular/dueño | Estado del pago (polling) |
+| POST | `/api/payments/webhook` | **público** | Eventos del proveedor (firma verificada) |
 
-**Errores:**
-- `400`: Fecha inválida o en el pasado
+### Partidos abiertos (matchmaking)
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| GET | `/api/matches?city=` | Lista partidos con cupos |
+| GET | `/api/matches/{id}` | Detalle del partido |
+| POST | `/api/matches` | Abre un partido (crea la reserva y lo publica) |
+| POST | `/api/matches/{id}/join` | Unirse |
+| POST | `/api/matches/{id}/leave` | Salir (reembolsa la parte si ya pagó) |
+| POST | `/api/matches/{id}/pay-share` | Paga la parte del jugador (pago dividido) |
+| GET | `/api/matches/{id}/players/me/receipt` | Comprobante de la parte del jugador |
 
----
+### Panel del dueño (`Owner`)
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| GET/POST | `/api/owner/venues` | Lista / crea sedes |
+| PUT/DELETE | `/api/owner/venues/{id}` | Actualiza / elimina sede |
+| GET/PUT | `/api/owner/venues/{id}/payment-config` | Modelo de recaudo (`marketplace`/`direct`) |
+| GET/POST | `/api/owner/venues/{id}/courts` | Lista / crea canchas |
+| PUT/DELETE | `/api/owner/courts/{id}` | Actualiza / elimina cancha |
+| PUT | `/api/owner/courts/{id}/prices` | Define reglas de precio |
+| GET/POST | `/api/owner/courts/{id}/blackouts` | Bloqueos de agenda |
+| DELETE | `/api/owner/blackouts/{id}` | Elimina un bloqueo |
+| GET | `/api/owner/reservations?date=` | Agenda de reservas del dueño |
+| POST | `/api/owner/reservations` | Reserva manual (walk-in / teléfono) |
+| GET | `/api/owner/reports?from=&to=` | Reporte de ocupación e ingresos |
 
-### 2. Crear Reserva
+La documentación interactiva completa está en **Swagger** (`/swagger`).
 
-```http
-POST /api/reservations
-Content-Type: application/json
+## 📐 Reglas de dominio (con pruebas)
 
-{
-  "user_id": "user123",
-  "field_id": "field-1",
-  "date": "2025-02-15",
-  "start_time": "14:00",
-  "end_time": "15:00"
-}
-```
+1. Una cancha no puede tener dos reservas que se solapen en la misma franja.
+2. Reservas de mínimo 1 hora, en bloques de la duración de la cancha.
+3. Horario de operación **por sede** (opening/closing de cada Venue).
+4. Anticipación mínima de 1 hora para reservar.
+5. Máximo 2 reservas activas por cliente.
+6. Cancelación fuera de la ventana de la sede = tardía (no-show, sin reembolso).
+7. Una reserva (o parte de pago dividido) solo se marca **pagada** tras la confirmación verificada del
+   proveedor por webhook — nunca de forma optimista.
 
-**Parámetros (body):**
-- `user_id` (string, required): ID del usuario
-- `field_id` (string, required): ID de la cancha
-- `date` (string, required): Fecha en formato `YYYY-MM-DD`
-- `start_time` (string, required): Hora inicio en formato `HH:MM`
-- `end_time` (string, required): Hora fin en formato `HH:MM`
+## 🗂️ Estructura
 
-**Respuesta (201):**
-```json
-{
-  "reservation_id": "res-abc123",
-  "user_id": "user123",
-  "field_id": "field-1",
-  "field_name": "Cancha A",
-  "date": "2025-02-15",
-  "start_time": "14:00",
-  "end_time": "15:00",
-  "status": "active",
-  "created_at": "2025-02-10T10:30:00Z"
-}
-```
-
-**Errores:**
-- `400`: Campos faltantes o inválidos
-- `422`: Violación de reglas de negocio:
-  - Turno ya reservado
-  - Menos de 24h de anticipación
-  - Usuario con 3 reservas activas
-
----
-
-### 3. Listar Reservas del Usuario
-
-```http
-GET /api/reservations?user_id=user123
-```
-
-**Parámetros:**
-- `user_id` (string, required): ID del usuario
-
-**Respuesta (200):**
-```json
-[
-  {
-    "reservation_id": "res-abc123",
-    "field_name": "Cancha A",
-    "date": "2025-02-15",
-    "start_time": "14:00",
-    "end_time": "15:00",
-    "status": "active",
-    "created_at": "2025-02-10T10:30:00Z"
-  }
-]
-```
-
-**Errores:**
-- `400`: `user_id` no proporcionado
-
----
-
-### 4. Cancelar Reserva
-
-```http
-DELETE /api/reservations/{reservationId}
-Content-Type: application/json
-
-{
-  "user_id": "user123"
-}
-```
-
-**Parámetros:**
-- `reservationId` (path, required): ID de la reserva
-- `user_id` (body, required): ID del usuario (validación)
-
-**Respuesta (200):**
-```json
-{
-  "reservation_id": "res-abc123",
-  "status": "cancelled",
-  "is_no_show": false,
-  "cancelled_at": "2025-02-10T11:00:00Z"
-}
-```
-
-**Valores de `is_no_show`:**
-- `false`: Cancelación con ≥2 horas de anticipación
-- `true`: Cancelación con <2 horas de anticipación (registrado como no-show)
-
-**Errores:**
-- `400`: Datos inválidos
-- `403`: Usuario no autorizado para cancelar esa reserva
-- `404`: Reserva no encontrada
-
----
-
-## 🔍 Documentación Interactiva
-
-Una vez que levantes la aplicación, accede a Swagger UI:
-
-```
-https://localhost:7001/swagger/index.html
-```
-
-Desde allí puedes probar todos los endpoints directamente.
-
-## 📁 Estructura del Proyecto
-
-```
+```text
 dotnet-backend/
-├── CanchasSinteticas.Api/           # Capa de presentación (controllers)
-│   ├── Controllers/
-│   │   ├── FieldsController.cs
-│   │   └── ReservationsController.cs
-│   └── Program.cs
-├── CanchasSinteticas.Application/   # Lógica de negocio (use cases)
-├── CanchasSinteticas.Domain/        # Modelos de dominio
-├── CanchasSinteticas.Infrastructure/ # Acceso a datos, base de datos
-└── CanchasSinteticas.slnx          # Archivo de solución
+├── CanchasSinteticas.Domain/          # Entidades, enums, value objects, políticas, interfaces repo
+├── CanchasSinteticas.Application/     # Casos de uso, DTOs, abstracciones (IPaymentGateway, etc.)
+├── CanchasSinteticas.Infrastructure/  # Persistencia en memoria, Wompi, QuestPDF, notificadores, seed
+├── CanchasSinteticas.Api/             # Controllers, JWT, middleware, background jobs, Program.cs
+└── CanchasSinteticas.Tests/           # xUnit
 ```
-
-## 🔧 Desarrollo
-
-### Compilar
-```bash
-dotnet build
-```
-
-### Ejecutar tests
-```bash
-dotnet test
-```
-
-### Publicar (release)
-```bash
-dotnet publish -c Release -o ./dist
-```
-
-## ⚙️ Configuración
-
-### Variables de entorno
-
-Crea un archivo `appsettings.Development.json` en `CanchasSinteticas.Api/`:
-
-```json
-{
-  "ConnectionStrings": {
-    "Default": "Data Source=reservations.db"
-  },
-  "Logging": {
-    "LogLevel": {
-      "Default": "Information",
-      "Microsoft.EntityFrameworkCore": "Warning"
-    }
-  }
-}
-```
-
-### CORS
-
-Por defecto, el frontend en `http://localhost:5173` está autorizado. Para agregar otros orígenes, edita `Program.cs`.
-
-## 🐛 Troubleshooting
-
-### Error: "SQLite database is locked"
-- Asegúrate que no hay otra instancia ejecutándose
-- Reinicia la aplicación
-
-### Error: "Port already in use"
-```bash
-# Cambiar puerto en launchSettings.json o variable ASPNETCORE_URLS
-set ASPNETCORE_URLS=https://localhost:7002
-dotnet run
-```
-
-### Swagger no carga
-- Verifica que `GenerateDocumentationFile` está habilitado en el .csproj
-- Limpia y reconstruye: `dotnet clean && dotnet build`
-
-## 📝 Validaciones de Negocio
-
-| Regla | Validación |
-|-------|-----------|
-| Anticipación mínima | 24 horas antes del turno |
-| Máximo de reservas activas | 3 por usuario |
-| Cobertura horaria | 09:00 - 22:00 |
-| Duración mínima | 1 hora |
-| Solapamiento | No permitido |
 
 ---
 
 ## 💳 Pagos (feature 002-payments-gateway)
 
-Integración de pasarela real (Wompi, detrás de `IPaymentGateway`), pago dividido entre jugadores,
-comprobantes en PDF y reembolsos. **Regla de Dominio 7**: el estado del pago sólo pasa a *aprobado*
-tras la confirmación verificada del proveedor por webhook; nunca de forma optimista.
+Integración de pasarela real (**Wompi**, detrás de `IPaymentGateway`), pago dividido entre jugadores,
+comprobantes en PDF y reembolsos. Cumple la **Regla de Dominio 7**: el pago solo se aprueba tras la
+confirmación verificada del proveedor por webhook, nunca de forma optimista.
 
-### Endpoints
-
-| Método | Ruta | Descripción |
-|--------|------|-------------|
-| POST | `/api/reservations/{id}/pay` | Inicia el pago (devuelve `checkout_url`; pago en `processing`). |
-| GET | `/api/payments/{id}` | Consulta el estado del pago (polling). |
-| POST | `/api/payments/webhook` | **Público**; eventos del proveedor (firma verificada + idempotencia). |
-| POST | `/api/matches/{id}/pay-share` | Paga la parte del jugador en un partido con pago dividido. |
-| GET | `/api/reservations/{id}/receipt` | Comprobante (PDF; `?format=json` para datos). |
-| GET | `/api/matches/{id}/players/me/receipt` | Comprobante de la parte del jugador. |
-| DELETE | `/api/reservations/{id}` | Cancela y reembolsa según la política de la sede (`refund_status`). |
-| GET/PUT | `/api/owner/venues/{id}/payment-config` | Modelo de recaudo: `marketplace` o `direct`. |
+**Flujo:** crear reserva (`pending`) → `POST /pay` crea la transacción y devuelve `checkout_url`
+(pago `processing`) → el cliente paga en el checkout del proveedor → el **webhook** confirma → la
+reserva pasa a `confirmed`, se genera el comprobante y se notifica. Rechazo/expiración libera la
+franja (barrido en segundo plano cada 30 s).
 
 Métodos soportados (Colombia): `nequi`, `pse`, `bancolombia_transfer`, `bancolombia_button`,
 `bancolombia_qr`, `card`.
 
-### Secretos (no versionar)
+### Configuración
+
+Sección `Payments` de `appsettings.json` (valores no sensibles): `Provider`, `ExpiryMinutes`,
+`Wompi.BaseUrl/PublicKey`, `Notifications.Email/WhatsAppSms.Enabled`.
+
+Los secretos se cargan **fuera del código**:
 
 ```bash
 cd CanchasSinteticas.Api
@@ -330,33 +158,31 @@ dotnet user-secrets set "Payments:Wompi:IntegritySecret" "integrity_test_xxx"
 ```
 
 En producción, por variables de entorno / gestor de secretos. Para recibir webhooks en desarrollo,
-exponer la API local con un túnel HTTPS y registrar `https://<túnel>/api/payments/webhook`.
+exponer la API con un túnel HTTPS y registrar `https://<túnel>/api/payments/webhook`.
+
+### Modelo de recaudo (por sede)
+
+- **`marketplace`** (por defecto): la plataforma recauda y liquida el 100% al dueño (sin comisión en
+  el MVP).
+- **`direct`**: el dueño recauda con su propia cuenta del proveedor (`gateway_merchant_ref`).
 
 ### Seguridad
 
-- El webhook valida la **firma (SHA-256 + events secret)**; los eventos no auténticos no cambian estado.
-- Procesamiento **idempotente** (`ProcessedWebhookEvent`): reenvíos no duplican cobros ni confirmaciones.
-- Comprobantes accesibles sólo por el titular del pago y el dueño de la sede.
+- El webhook valida la **firma (checksum SHA-256 + events secret)**; los eventos no auténticos no
+  cambian ningún estado.
+- Procesamiento **idempotente** (`ProcessedWebhookEvent`): reenvíos no duplican cobros ni
+  confirmaciones.
+- Comprobantes accesibles solo por el titular del pago y el dueño de la sede.
 - Ningún secreto en código ni en logs; el webhook no expone detalles internos.
 
 ### Notas de MVP
 
-- Persistencia en memoria: un reinicio pierde pagos `Pending`/`Processing` (reconciliables con el
+- Persistencia en memoria: un reinicio pierde pagos `pending`/`processing` (reconciliables con el
   proveedor). Migración a EF Core habilitada por las interfaces `IRepository`.
-- Correo y WhatsApp/SMS: activables por `Payments:Notifications` (adaptador real por conectar).
-- Marketplace: liquida el 100% al dueño; la comisión de plataforma queda fuera del MVP.
-| No-show | Si se cancela con <2h anticipación |
-
-## 📞 Soporte
-
-Para reportar bugs o sugerir mejoras, abre un [issue en GitHub](https://github.com/JMoneda/canchas-sinteticas/issues).
+- Correo y WhatsApp/SMS: activables por `Payments:Notifications` (adaptador de envío real por
+  conectar).
+- Comisión de plataforma en marketplace: fuera del alcance del MVP.
 
 ## 📄 Licencia
 
-Este proyecto es de uso privado. Todos los derechos reservados.
-
----
-
-**Última actualización:** Febrero 2025  
-**Versión API:** v1  
-**Estado:** En desarrollo
+Proyecto de uso privado. Todos los derechos reservados.

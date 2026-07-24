@@ -15,6 +15,11 @@ public class WompiWebhookVerifier(PaymentsOptions options, WompiSignatureVerifie
         if (string.IsNullOrWhiteSpace(rawBody))
             return null;
 
+        // Fallar cerrado: sin secreto de eventos, la firma no aporta ninguna garantía (un atacante
+        // podría computarla con datos del propio payload). No se acepta ningún evento.
+        if (string.IsNullOrWhiteSpace(options.Wompi.EventsSecret))
+            return null;
+
         try
         {
             using var doc = JsonDocument.Parse(rawBody);
