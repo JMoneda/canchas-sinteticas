@@ -12,7 +12,7 @@ Luego espera la respuesta del usuario antes de continuar.
 <!-- SPECKIT START -->
 ## Feature activa (Spec Kit)
 
-- **002-payments-gateway** — Pagos reales (Wompi), pago dividido y comprobantes.
-  - Plan: [specs/002-payments-gateway/plan.md](specs/002-payments-gateway/plan.md)
-  - Spec: [specs/002-payments-gateway/spec.md](specs/002-payments-gateway/spec.md)
+- **003-frontend-redesign** — Rediseño del frontend (deportivo/premium/elegante) + validación de formularios.
+  - Plan: [specs/003-frontend-redesign/plan.md](specs/003-frontend-redesign/plan.md)
+  - Spec: [specs/003-frontend-redesign/spec.md](specs/003-frontend-redesign/spec.md)
 <!-- SPECKIT END -->

@@ -1,6 +1,12 @@
 @import "tailwindcss";
 
+/*
+  Sistema de diseño — "deportivo, premium y elegante".
+  Verde césped refinado + acento lima energético sobre neutros fríos elegantes.
+  Fuentes de sistema (cero costo de red). Tokens vía @theme de Tailwind v4.
+*/
 @theme {
+  /* Marca (verde césped, refinado) */
   --color-brand-50: #ecfdf5;
   --color-brand-100: #d1fae5;
   --color-brand-200: #a7f3d0;
@@ -11,6 +17,39 @@
   --color-brand-700: #047857;
   --color-brand-800: #065f46;
   --color-brand-900: #064e3b;
+  --color-brand-950: #022c22;
+
+  /* Acento (lima energético — CTAs y datos destacados) */
+  --color-accent-50: #f7fee7;
+  --color-accent-100: #ecfccb;
+  --color-accent-200: #d9f99d;
+  --color-accent-300: #bef264;
+  --color-accent-400: #a3e635;
+  --color-accent-500: #84cc16;
+  --color-accent-600: #65a30d;
+  --color-accent-700: #4d7c0f;
+
+  /* Tinta / superficies (neutros elegantes) */
+  --color-ink: #0b1220;
+  --color-ink-muted: #475569;
+
+  /* Tipografía */
+  --font-sans:
+    "Inter", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-display:
+    "Inter Tight", "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+
+  /* Radios */
+  --radius-control: 0.625rem; /* 10px */
+  --radius-card: 1.25rem; /* 20px */
+
+  /* Sombras suaves multicapa (premium) */
+  --shadow-soft: 0 1px 2px 0 rgb(2 6 23 / 0.04), 0 1px 3px 0 rgb(2 6 23 / 0.06);
+  --shadow-card:
+    0 1px 2px 0 rgb(2 6 23 / 0.04), 0 8px 24px -12px rgb(2 6 23 / 0.12);
+  --shadow-lifted:
+    0 2px 4px 0 rgb(2 6 23 / 0.05), 0 18px 40px -16px rgb(2 6 23 / 0.22);
+  --shadow-focus: 0 0 0 3px rgb(16 185 129 / 0.35);
 }
 
 html {
@@ -18,5 +57,35 @@ html {
 }
 
 body {
-  @apply bg-slate-50 text-slate-800 antialiased;
+  @apply bg-slate-50 font-sans text-slate-800 antialiased;
+  /* Fondo premium sutil: halo verde que se desvanece hacia el neutro */
+  background-image:
+    radial-gradient(60rem 60rem at 100% -10%, rgb(16 185 129 / 0.06), transparent 55%),
+    radial-gradient(50rem 50rem at -10% 0%, rgb(132 204 22 / 0.05), transparent 50%);
+  background-attachment: fixed;
+}
+
+/* Foco visible y accesible en todos los controles (teclado) */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-brand-600);
+  outline-offset: 2px;
+  border-radius: var(--radius-control);
+}
+
+/* Tipografía de titulares */
+h1, h2, h3 {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+/* Respetar preferencia de movimiento reducido */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

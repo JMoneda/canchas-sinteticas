@@ -254,6 +254,10 @@ function CourtFormModal({
   );
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [attempted, setAttempted] = useState(false);
+
+  const nameError = form.name.trim() ? undefined : 'El nombre es obligatorio.';
+  const isValid = !nameError;
 
   function update<K extends keyof CreateCourtPayload>(key: K, value: CreateCourtPayload[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -261,6 +265,10 @@ function CourtFormModal({
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    setAttempted(true);
+    if (!isValid) {
+      return;
+    }
     setBusy(true);
     setErr(null);
     try {
@@ -281,8 +289,8 @@ function CourtFormModal({
     <ModalShell onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
         <h3 className="text-lg font-semibold text-slate-800">{court ? 'Editar cancha' : 'Nueva cancha'}</h3>
-        <Field label="Nombre">
-          <input className={inputClasses} value={form.name} onChange={(e) => update('name', e.target.value)} required />
+        <Field label="Nombre" required error={attempted ? nameError : undefined}>
+          <input className={inputClasses} value={form.name} onChange={(e) => update('name', e.target.value)} />
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Modalidad">
@@ -326,7 +334,7 @@ function CourtFormModal({
           <Button type="button" variant="secondary" onClick={onClose} disabled={busy}>
             Cancelar
           </Button>
-          <Button type="submit" disabled={busy}>
+          <Button type="submit" loading={busy} disabled={attempted && !isValid}>
             {busy ? 'Guardando...' : 'Guardar'}
           </Button>
         </div>

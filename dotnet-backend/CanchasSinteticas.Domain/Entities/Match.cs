@@ -9,6 +9,9 @@ namespace CanchasSinteticas.Domain.Entities;
 /// </summary>
 public class Match
 {
+    /// <summary>Cupo máximo permitido para un partido (fútbol 11 + suplentes).</summary>
+    public const int MaxAllowedPlayers = 30;
+
     private readonly List<MatchPlayer> players = [];
 
     /// <summary>Identificador único.</summary>
@@ -58,6 +61,8 @@ public class Match
     {
         if (maxPlayers < 2)
             throw new ValidationError("El partido debe permitir al menos 2 jugadores.");
+        if (maxPlayers > MaxAllowedPlayers)
+            throw new ValidationError($"El cupo máximo de un partido es {MaxAllowedPlayers} jugadores.");
 
         Id = id;
         ReservationId = reservationId;

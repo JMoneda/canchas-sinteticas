@@ -10,6 +10,7 @@ import {
   todayIso,
 } from '../lib/format';
 import { Badge, Button, Card, EmptyState, ErrorBanner, Field, ModalShell, Spinner, inputClasses } from '../components/ui';
+import { validatePhone } from '../lib/validation';
 
 export function OwnerAgendaPage() {
   const [date, setDate] = useState(todayIso());
@@ -111,9 +112,18 @@ function ManualReservationModal({
   const [clientPhone, setClientPhone] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [attempted, setAttempted] = useState(false);
+
+  const timeError = endTime > startTime ? undefined : 'La hora de fin debe ser posterior al inicio.';
+  const phoneError = validatePhone(clientPhone) ?? undefined;
+  const isValid = !timeError && !phoneError && courtId !== '';
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    setAttempted(true);
+    if (!isValid) {
+      return;
+    }
     setBusy(true);
     setErr(null);
     try {
@@ -146,15 +156,15 @@ function ManualReservationModal({
             <Field label="Desde">
               <input type="time" className={inputClasses} value={startTime} onChange={(e) => setStartTime(e.target.value)} required />
             </Field>
-            <Field label="Hasta">
+            <Field label="Hasta" error={attempted ? timeError : undefined}>
               <input type="time" className={inputClasses} value={endTime} onChange={(e) => setEndTime(e.target.value)} required />
             </Field>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Cliente (opcional)">
+            <Field label="Cliente" hint="Opcional">
               <input className={inputClasses} value={clientName} onChange={(e) => setClientName(e.target.value)} />
             </Field>
-            <Field label="Teléfono (opcional)">
+            <Field label="Teléfono" hint="Opcional" error={attempted ? phoneError : undefined}>
               <input className={inputClasses} value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} />
             </Field>
           </div>
@@ -163,7 +173,7 @@ function ManualReservationModal({
             <Button type="button" variant="secondary" onClick={onClose} disabled={busy}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={busy}>
+            <Button type="submit" loading={busy} disabled={attempted && !isValid}>
               {busy ? 'Creando...' : 'Crear reserva'}
             </Button>
           </div>

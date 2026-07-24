@@ -57,16 +57,17 @@ export function VenueDetailPage() {
 
   return (
     <div className="space-y-6">
-      <Link to="/" className="text-sm text-brand-700 hover:underline">
+      <Link to="/" className="inline-flex items-center gap-1 text-sm font-medium text-brand-700 hover:underline">
         ← Volver a la búsqueda
       </Link>
 
       <Card className="overflow-hidden">
-        <div className="flex h-40 items-center justify-center bg-gradient-to-br from-brand-200 to-brand-400 text-6xl">
-          🏟️
+        <div className="relative flex h-44 items-center justify-center bg-gradient-to-br from-brand-600 to-brand-800 text-7xl">
+          <span className="drop-shadow-lg">🏟️</span>
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_60%_at_50%_0%,rgba(255,255,255,0.15),transparent)]" />
         </div>
         <div className="p-6">
-          <h1 className="text-2xl font-bold text-slate-800">{venue.name}</h1>
+          <h1 className="text-2xl font-bold text-slate-900">{venue.name}</h1>
           <p className="text-slate-500">
             {venue.city} · {venue.address}
           </p>

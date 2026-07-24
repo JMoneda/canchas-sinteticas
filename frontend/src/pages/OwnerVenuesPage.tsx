@@ -127,6 +127,16 @@ function VenueFormModal({
   const [servicesText, setServicesText] = useState((venue?.services ?? []).join(', '));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [attempted, setAttempted] = useState(false);
+
+  const fieldErrors = {
+    name: form.name.trim() ? undefined : 'El nombre es obligatorio.',
+    city: form.city.trim() ? undefined : 'La ciudad es obligatoria.',
+    address: form.address.trim() ? undefined : 'La dirección es obligatoria.',
+    closing_time:
+      form.closing_time > form.opening_time ? undefined : 'El cierre debe ser posterior a la apertura.',
+  };
+  const isValid = Object.values(fieldErrors).every((e) => !e);
 
   function update<K extends keyof CreateVenuePayload>(key: K, value: CreateVenuePayload[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -134,6 +144,10 @@ function VenueFormModal({
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    setAttempted(true);
+    if (!isValid) {
+      return;
+    }
     setBusy(true);
     setErr(null);
     const payload: CreateVenuePayload = {
@@ -158,25 +172,25 @@ function VenueFormModal({
     <ModalShell onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
           <h3 className="text-lg font-semibold text-slate-800">{venue ? 'Editar sede' : 'Nueva sede'}</h3>
-          <Field label="Nombre">
-            <input className={inputClasses} value={form.name} onChange={(e) => update('name', e.target.value)} required />
+          <Field label="Nombre" required error={attempted ? fieldErrors.name : undefined}>
+            <input className={inputClasses} value={form.name} onChange={(e) => update('name', e.target.value)} />
           </Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Ciudad">
-              <input className={inputClasses} value={form.city} onChange={(e) => update('city', e.target.value)} required />
+            <Field label="Ciudad" required error={attempted ? fieldErrors.city : undefined}>
+              <input className={inputClasses} value={form.city} onChange={(e) => update('city', e.target.value)} />
             </Field>
             <Field label="Teléfono">
               <input className={inputClasses} value={form.phone ?? ''} onChange={(e) => update('phone', e.target.value)} />
             </Field>
           </div>
-          <Field label="Dirección">
-            <input className={inputClasses} value={form.address} onChange={(e) => update('address', e.target.value)} required />
+          <Field label="Dirección" required error={attempted ? fieldErrors.address : undefined}>
+            <input className={inputClasses} value={form.address} onChange={(e) => update('address', e.target.value)} />
           </Field>
           <div className="grid grid-cols-3 gap-3">
             <Field label="Apertura">
               <input type="time" className={inputClasses} value={form.opening_time} onChange={(e) => update('opening_time', e.target.value)} required />
             </Field>
-            <Field label="Cierre">
+            <Field label="Cierre" error={attempted ? fieldErrors.closing_time : undefined}>
               <input type="time" className={inputClasses} value={form.closing_time} onChange={(e) => update('closing_time', e.target.value)} required />
             </Field>
             <Field label="Cancelación (h)">
@@ -207,7 +221,7 @@ function VenueFormModal({
             <Button type="button" variant="secondary" onClick={onClose} disabled={busy}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={busy}>
+            <Button type="submit" loading={busy} disabled={attempted && !isValid}>
               {busy ? 'Guardando...' : 'Guardar'}
             </Button>
           </div>

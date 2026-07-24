@@ -1,4 +1,5 @@
 using CanchasSinteticas.Domain.Entities;
+using CanchasSinteticas.Domain.Exceptions;
 
 namespace CanchasSinteticas.Tests.Domain;
 
@@ -9,6 +10,18 @@ public class MatchSplitTests
 
     private static Match NewMatch(int maxPlayers, decimal total) =>
         new("m1", "res1", "org", maxPlayers, true, total, null, Now.AddDays(1), Now);
+
+    [Fact]
+    public void Rechaza_un_cupo_menor_a_dos()
+    {
+        Assert.Throws<ValidationError>(() => NewMatch(1, 80000m));
+    }
+
+    [Fact]
+    public void Rechaza_un_cupo_por_encima_del_maximo_permitido()
+    {
+        Assert.Throws<ValidationError>(() => NewMatch(Match.MaxAllowedPlayers + 1, 80000m));
+    }
 
     [Fact]
     public void La_suma_de_las_partes_iguala_exactamente_el_total()
