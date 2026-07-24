@@ -1,0 +1,12 @@
+<Project>
+
+  <!--
+    Fuerza al compilador de C# a leer los archivos fuente como UTF-8 (65001).
+    Sin esto, en Windows csc asume el codepage del sistema (1252) y los textos
+    con acentos en español quedan mal codificados (mojibake).
+  -->
+  <PropertyGroup>
+    <CodePage>65001</CodePage>
+  </PropertyGroup>
+
+</Project>

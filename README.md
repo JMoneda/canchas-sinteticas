@@ -1,50 +1,39 @@
 # Canchas Sintéticas
 
-Sistema de reservas para canchas de fútbol sintético. Permite ver disponibilidad por hora, reservar turnos y cancelarlos, con validación de reglas de negocio en el dominio.
+Plataforma **multi-tenant** de reserva de canchas de fútbol sintético. Funciona como un
+**marketplace** para clientes (buscar sedes, ver disponibilidad en tiempo real, reservar y pagar)
+y como un **panel SaaS** para dueños (registrar sedes, dar de alta canchas, configurar tarifas por
+franja horaria, bloqueos, agenda y reportes). Todo sobre una misma API.
+
+> **Nota de arquitectura:** la persistencia es **en memoria** (sin base de datos por ahora). Los
+> repositorios viven detrás de interfaces (`IVenueRepository`, `IReservationRepository`, …), así que
+> enchufar EF Core / SQL Server más adelante no requiere tocar el dominio ni la capa de aplicación.
 
 ## Requisitos
 
 | Herramienta | Versión mínima | Uso |
 |-------------|----------------|-----|
-| .NET SDK    | 10.0+          | Backend (.NET) |
-| Node.js     | 18+            | Frontend React |
-| Python      | 3.11+          | Backend original (opcional) |
+| .NET SDK    | 10.0+          | Backend |
+| Node.js     | 18+            | Frontend |
 
 ---
 
 ## Inicio rápido
 
-### 1. Backend .NET (recomendado)
+### 1. Backend (.NET)
 
 ```bash
 cd dotnet-backend
-
 dotnet run --project CanchasSinteticas.Api/CanchasSinteticas.Api.csproj
 ```
 
-El servidor queda en `http://localhost:8080`.  
-Swagger UI: `http://localhost:8080/swagger`  
-OpenAPI spec: `http://localhost:8080/swagger/v1/swagger.json`
+- API: `http://localhost:8080`
+- Swagger UI (con botón *Authorize* para el JWT): `http://localhost:8080/swagger`
 
-> La base de datos SQLite se crea automáticamente en `dotnet-backend/CanchasSinteticas.Api/reservations.db`.  
-> Las 3 canchas (A, B, C) se siembran al arrancar si no existen.
+Al arrancar se cargan datos de demostración en memoria (2 dueños, un cliente, 3 sedes en Bogotá y
+Medellín, canchas con tarifas diurno/nocturno y reservas de ejemplo).
 
-### 1b. Backend Python (alternativo)
-
-```bash
-cd backend
-
-python -m venv .venv
-.venv\Scripts\activate          # Windows PowerShell
-source .venv/bin/activate       # macOS / Linux
-
-pip install -r requirements.txt
-uvicorn api.main:app --reload --port 8000
-```
-
-Docs interactivos: `http://localhost:8000/docs`
-
-### 2. Frontend
+### 2. Frontend (React + TypeScript + Tailwind)
 
 ```bash
 cd frontend
@@ -52,27 +41,150 @@ npm install
 npm run dev
 ```
 
-La app queda en `http://localhost:5173`.
+App: `http://localhost:5173`
+
+La URL de la API se configura en `frontend/.env` (`VITE_API_URL`).
 
 ---
 
-## Ejecutar tests
+## Cuentas de demostración
 
-```bash
-cd backend
-.venv\Scripts\activate
+Contraseña para todas: **`password123`**
 
-# Todos los tests
-pytest tests/ -v
+| Rol | Correo | Qué puede hacer |
+|-----|--------|-----------------|
+| Cliente | `cliente@canchas.co` | Buscar sedes, reservar, pagar, cancelar |
+| Dueño | `owner1@canchas.co` | Gestionar sus sedes/canchas/tarifas, agenda, reportes |
+| Dueño | `owner2@canchas.co` | (otra organización — no ve las sedes del dueño 1) |
 
-# Solo unitarios (sin base de datos)
-pytest tests/unit/ -v
+---
 
-# Con cobertura
-pytest tests/ -v --cov=. --cov-report=term-missing
+## Arquitectura
+
+Clean Architecture / hexagonal en 4 proyectos:
+
+```
+dotnet-backend/
+├── CanchasSinteticas.Domain/          # Entidades, enums, value objects, servicios e interfaces de repos
+│   ├── Entities/                      #   User, Venue, Court, PriceRule, Blackout, Reservation, Payment
+│   ├── Enums/                         #   UserRole, CourtType, ReservationStatus, ...
+│   ├── ValueObjects/                  #   TimeSlot, GeoLocation
+│   ├── Services/                      #   PricingCalculator (precio por franja)
+│   ├── Repositories/                  #   Interfaces (I*Repository)
+│   └── Exceptions/                    #   DomainException + subclases tipadas
+├── CanchasSinteticas.Application/     # Casos de uso (servicios), DTOs, abstracciones
+│   ├── Abstractions/                  #   IClock, IPasswordHasher, ITokenService
+│   ├── Services/                      #   AuthService, VenueService, CourtService, AvailabilityService,
+│   │                                  #   ReservationService, BlackoutService, PaymentService, ReportService
+│   ├── DTOs/
+│   └── Common/                        #   Parsing, Mappers, Ownership (guard multi-tenant)
+├── CanchasSinteticas.Infrastructure/  # Persistencia en memoria, hashing, reloj, seed
+│   ├── Persistence/                   #   InMemoryDatabase (ConcurrentDictionary)
+│   ├── Repositories/                  #   InMemory*Repository
+│   ├── Security/                      #   Pbkdf2PasswordHasher
+│   ├── Time/                          #   SystemClock
+│   └── Seed/                          #   DatabaseSeeder
+└── CanchasSinteticas.Api/             # Controllers, middleware, JWT, Program.cs
+    ├── Auth/                          #   JwtTokenService
+    ├── Controllers/
+    └── Middleware/                    #   DomainExceptionMiddleware
 ```
 
-**55 tests · 0 fallos** — unitarios de dominio, use cases e integración con SQLite en memoria.
+```
+frontend/
+└── src/
+    ├── api/            # client.ts (fetch + JWT), types.ts (DTOs)
+    ├── auth/           # AuthContext, ProtectedRoute
+    ├── components/     # Layout, ui (Button, Card, Field, ...)
+    ├── lib/            # useAsync, format (COP, etiquetas)
+    └── pages/
+        ├── MarketplacePage / VenueDetailPage        # cara cliente (marketplace + wizard de reserva)
+        ├── LoginPage / RegisterPage / MyReservationsPage
+        └── OwnerDashboardPage / OwnerVenuesPage /
+            OwnerVenueDetailPage / OwnerAgendaPage    # cara dueño (panel)
+```
+
+---
+
+## Modelo de dominio
+
+```
+User (rol: SuperAdmin | Owner | Client)
+Owner 1───N Venue (sede) 1───N Court (cancha) 1───N PriceRule (tarifa por franja)
+                                              1───N Blackout (bloqueo)
+                                              1───N Reservation N───1 Client
+Reservation 1───1 Payment
+```
+
+---
+
+## Autenticación
+
+JWT (HMAC-SHA256). Registro/login devuelven un token; el rol viaja como claim y protege los
+endpoints (`[Authorize(Roles = "Owner")]`). Contraseñas con PBKDF2. Config en `appsettings.json` → `Jwt`.
+
+```
+POST /api/auth/register   { name, email, phone?, password, role }  → token
+POST /api/auth/login      { email, password }                       → token
+GET  /api/auth/me                                                   → perfil
+```
+
+---
+
+## API
+
+### Público / cliente
+
+```
+GET    /api/venues?city=Bogotá                       Buscar sedes (marketplace)
+GET    /api/venues/{venueId}                          Detalle de sede + canchas
+GET    /api/courts/{courtId}/availability?date=       Disponibilidad (slots con precio y estado)
+POST   /api/reservations                              Crear reserva            (cliente)
+GET    /api/reservations                              Mis reservas             (cliente)
+DELETE /api/reservations/{id}                         Cancelar reserva         (cliente)
+POST   /api/reservations/{id}/pay                     Pagar (simulado)         (cliente)
+```
+
+### Partidos abiertos (matchmaking)
+
+```
+GET    /api/matches?city=                             Listar partidos con cupos (público)
+GET    /api/matches/{id}                               Detalle de un partido     (público)
+POST   /api/matches                                    Abrir partido (crea reserva + publica cupos) (cliente)
+POST   /api/matches/{id}/join                          Unirse a un partido       (cliente)
+POST   /api/matches/{id}/leave                         Salir de un partido       (cliente)
+```
+
+### Panel del dueño (`[Authorize(Roles = "Owner")]`)
+
+```
+GET/POST        /api/owner/venues                     Listar / crear sedes
+PUT/DELETE      /api/owner/venues/{id}                Editar / eliminar sede
+GET/POST        /api/owner/venues/{id}/courts         Listar / crear canchas
+PUT/DELETE      /api/owner/courts/{id}                Editar / eliminar cancha
+PUT             /api/owner/courts/{id}/prices         Configurar tarifas por franja
+GET/POST        /api/owner/courts/{id}/blackouts      Listar / crear bloqueos
+DELETE          /api/owner/blackouts/{id}             Eliminar bloqueo
+GET/POST        /api/owner/reservations               Agenda / reserva manual
+GET             /api/owner/reports                     Reporte de ocupación e ingresos
+```
+
+**Errores de dominio** — cuerpo `{ error_type, message }`:
+
+| `error_type` | HTTP | Motivo |
+|--------------|------|--------|
+| `OVERLAP` | 422 | El turno ya está ocupado |
+| `DURATION_INVALID` | 422 | La duración no coincide con el bloque de la cancha |
+| `OPERATING_HOURS` | 422 | Fuera del horario de la sede |
+| `ADVANCE_NOTICE` | 422 | Menos de 1 hora de anticipación |
+| `ACTIVE_LIMIT` | 422 | Límite de reservas activas alcanzado |
+| `BLACKOUT_CONFLICT` | 422 | La cancha está bloqueada en esa franja |
+| `NO_PRICE` | 422 | No hay tarifa configurada para la franja |
+| `VALIDATION` | 422 | Datos de entrada inválidos |
+| `VENUE_NOT_FOUND` / `COURT_NOT_FOUND` / `NOT_FOUND` | 404 | Recurso inexistente |
+| `NOT_AUTHORIZED` | 403 | El recurso no pertenece al dueño |
+| `EMAIL_EXISTS` | 409 | Correo ya registrado |
+| `INVALID_CREDENTIALS` | 401 | Correo o contraseña incorrectos |
 
 ---
 
@@ -80,129 +192,10 @@ pytest tests/ -v --cov=. --cov-report=term-missing
 
 | Regla | Detalle |
 |-------|---------|
-| Duración mínima | 1 hora por reserva |
-| Horario operativo | 06:00 – 23:00 |
-| Anticipación mínima | La reserva debe crearse con al menos 1 hora de antelación |
-| Límite activo | Máximo 2 reservas activas por usuario |
-| Sin solapamiento | No se puede reservar una cancha ya ocupada en ese rango |
-| No-show | Cancelar con menos de 2 horas de anticipación queda registrado como no-show |
-
----
-
-## API
-
-Base URL: `http://localhost:8000/api`
-
-### Disponibilidad
-
-```
-GET /fields/availability?date=YYYY-MM-DD
-```
-
-Devuelve las 3 canchas con sus turnos disponibles (bloques de 1 hora libres).  
-Retorna `400` si la fecha es pasada.
-
-### Reservas
-
-```
-POST   /reservations              → 201  Crea una reserva
-GET    /reservations?user_id=X   → 200  Lista reservas activas del usuario
-DELETE /reservations/{id}        → 200  Cancela una reserva
-```
-
-**Errores de dominio** (HTTP 422 salvo indicación):
-
-| `error_type`       | Motivo                                        |
-|--------------------|-----------------------------------------------|
-| `OVERLAP`          | El turno ya está ocupado en esa cancha        |
-| `DURATION_INVALID` | Duración menor a 1 hora                       |
-| `INVALID_BLOCK`    | Hora no alineada a bloques de 30 min          |
-| `OPERATING_HOURS`  | Fuera del horario 06:00–23:00                 |
-| `ADVANCE_NOTICE`   | Menos de 1 hora de anticipación               |
-| `ACTIVE_LIMIT`     | Ya tenés 2 reservas activas                   |
-| `FIELD_NOT_FOUND`  | La cancha no existe                           |
-| `NOT_FOUND`        | Reserva inexistente (404)                     |
-| `NOT_AUTHORIZED`   | La reserva no pertenece al usuario (403)      |
-| `ALREADY_CANCELLED`| Ya fue cancelada (400)                        |
-
----
-
-## Copilot Studio — Custom Connector
-
-Para consumir la API desde un agente de Copilot Studio:
-
-1. Levantá el backend .NET en un host accesible públicamente (Azure App Service, ngrok, etc.).
-2. En Copilot Studio → **Conectores** → **Nuevo conector personalizado**.
-3. Importá desde URL: `https://<tu-host>/swagger/v1/swagger.json`
-4. En **Seguridad**: sin autenticación.
-5. Probá la acción **GetAvailability** con un `date` en formato `YYYY-MM-DD`.
-
-El endpoint clave para el agente es:
-
-```
-GET /api/fields/availability?date=YYYY-MM-DD
-```
-
-Respuesta: lista de canchas con sus turnos libres del día.
-
----
-
-## Estructura del proyecto
-
-```
-canchas-sinteticas/
-├── dotnet-backend/
-│   ├── CanchasSinteticas.Domain/        # Entidades, ValueObjects, interfaces repos, excepciones
-│   ├── CanchasSinteticas.Application/   # Use cases + DTOs
-│   ├── CanchasSinteticas.Infrastructure/ # EF Core + SQLite
-│   └── CanchasSinteticas.Api/           # Controllers, Middleware, Program.cs
-│
-├── backend/         # Backend original Python/FastAPI (referencia)
-│   ├── domain/                  # Reglas de negocio puras (sin frameworks)
-│   │   ├── entities/            #   Field, Reservation
-│   │   ├── value_objects/       #   TimeSlot (valida duración, horario, solapamiento)
-│   │   ├── repositories/        #   Interfaces abstractas (ABCs)
-│   │   └── exceptions.py        #   DomainError y subclases tipadas
-│   ├── application/             # Casos de uso (orquestan dominio)
-│   │   ├── dtos.py
-│   │   └── use_cases/           #   ListAvailableSlots, CreateReservation,
-│   │                            #   ListReservations, CancelReservation
-│   ├── infrastructure/          # Persistencia SQLite + SQLAlchemy
-│   │   ├── database.py
-│   │   ├── models/              #   ORM models (separados de las entidades)
-│   │   ├── repositories/        #   Implementaciones concretas de los ABCs
-│   │   └── seed.py              #   Siembra Cancha A/B/C al iniciar
-│   ├── api/                     # HTTP (FastAPI) — solo in/out, sin lógica
-│   │   ├── main.py
-│   │   ├── dependencies.py
-│   │   ├── error_handling.py
-│   │   └── routes/              #   fields.py, reservations.py
-│   ├── tests/
-│   │   ├── unit/
-│   │   │   ├── domain/          #   test_time_slot.py
-│   │   │   └── use_cases/       #   test_create/cancel/list_*.py
-│   │   └── integration/         #   test_api.py (SQLite en memoria)
-│   ├── requirements.txt
-│   └── pyproject.toml
-│
-└── frontend/
-    └── src/
-        ├── components/
-        │   ├── IdentifierGate.jsx    # Pantalla de entrada (nombre de usuario)
-        │   ├── FieldAvailability.jsx # Grilla de turnos disponibles por cancha
-        │   ├── ReservationForm.jsx   # Confirmación de reserva
-        │   ├── ReservationList.jsx   # Mis reservas activas + cancelación
-        │   └── ErrorMessage.jsx      # Banner de error reutilizable
-        ├── services/api.js           # Llamadas HTTP al backend
-        ├── App.jsx                   # useReducer: estado de sesión y navegación
-        └── main.jsx
-```
-
----
-
-## Flujo de uso
-
-1. Abrís `http://localhost:5173` e ingresás tu nombre (ej: `"maria"`)
-2. Seleccionás fecha → ves los turnos disponibles por cancha
-3. Hacés click en un turno → confirmás la reserva
-4. En "Mis reservas" ves tus reservas activas y podés cancelarlas
+| Duración de reserva | Múltiplo de la duración de bloque de la cancha (`slot_duration_minutes`) |
+| Horario operativo | Definido por sede (`opening_time` / `closing_time`) |
+| Anticipación mínima | 1 hora |
+| Límite activo | 3 reservas activas por cliente |
+| Precio por franja | Tarifas configurables por día y hora (diurno/nocturno/festivo) |
+| Cancelación | Ventana configurable por sede; cancelar fuera de plazo cuenta como no-show |
+| Aislamiento multi-tenant | Cada dueño solo ve y gestiona sus propias sedes y canchas |

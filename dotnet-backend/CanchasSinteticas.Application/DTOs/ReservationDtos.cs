@@ -1,25 +1,44 @@
-using System.Text.Json.Serialization;
-
 namespace CanchasSinteticas.Application.DTOs;
 
+/// <summary>Datos para crear una reserva desde el marketplace (el cliente sale del token).</summary>
 public record CreateReservationInput(
-    string UserId,
-    string FieldId,
+    string CourtId,
     string Date,
     string StartTime,
-    string EndTime);
+    string EndTime,
+    string? PaymentMethod);
 
+/// <summary>Datos para crear una reserva manual desde el panel del dueño.</summary>
+public record ManualReservationInput(
+    string CourtId,
+    string Date,
+    string StartTime,
+    string EndTime,
+    string? ClientName,
+    string? ClientPhone);
+
+/// <summary>Representación completa de una reserva.</summary>
 public record ReservationOutput(
-    [property: JsonPropertyName("reservation_id")] string ReservationId,
-    [property: JsonPropertyName("field_id")] string FieldId,
-    [property: JsonPropertyName("field_name")] string FieldName,
-    [property: JsonPropertyName("user_id")] string UserId,
-    [property: JsonPropertyName("date")] string Date,
-    [property: JsonPropertyName("start_time")] string StartTime,
-    [property: JsonPropertyName("end_time")] string EndTime,
-    [property: JsonPropertyName("status")] string Status);
+    string Id,
+    string CourtId,
+    string CourtName,
+    string VenueId,
+    string VenueName,
+    string ClientId,
+    string? ClientName,
+    string? ClientPhone,
+    string Date,
+    string StartTime,
+    string EndTime,
+    decimal TotalPrice,
+    string Status,
+    string Channel,
+    string PaymentStatus,
+    string CreatedAt);
 
+/// <summary>Resultado de cancelar una reserva.</summary>
 public record CancelOutput(
-    [property: JsonPropertyName("reservation_id")] string ReservationId,
-    [property: JsonPropertyName("status")] string Status,
-    [property: JsonPropertyName("no_show")] bool NoShow);
+    string ReservationId,
+    string Status,
+    bool NoShow,
+    bool Refunded);

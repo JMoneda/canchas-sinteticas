@@ -1,25 +1,48 @@
 using System.Reflection;
+using System.Security.Claims;
+using System.Text;
+using CanchasSinteticas.Api.Auth;
 using CanchasSinteticas.Api.Middleware;
-using CanchasSinteticas.Application.UseCases;
+using CanchasSinteticas.Application.Abstractions;
+using CanchasSinteticas.Application.Services;
 using CanchasSinteticas.Domain.Repositories;
-using CanchasSinteticas.Infrastructure.Data;
+using CanchasSinteticas.Infrastructure.Persistence;
 using CanchasSinteticas.Infrastructure.Repositories;
+using CanchasSinteticas.Infrastructure.Security;
 using CanchasSinteticas.Infrastructure.Seed;
-using Microsoft.EntityFrameworkCore;
+using CanchasSinteticas.Infrastructure.Time;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var dbPath = builder.Configuration.GetConnectionString("Default")
-    ?? "Data Source=reservations.db";
+// --- Persistencia en memoria (reemplaza la BD por ahora) ---
+builder.Services.AddSingleton<InMemoryDatabase>();
+builder.Services.AddSingleton<IUserRepository, InMemoryUserRepository>();
+builder.Services.AddSingleton<IVenueRepository, InMemoryVenueRepository>();
+builder.Services.AddSingleton<ICourtRepository, InMemoryCourtRepository>();
+builder.Services.AddSingleton<IPriceRuleRepository, InMemoryPriceRuleRepository>();
+builder.Services.AddSingleton<IBlackoutRepository, InMemoryBlackoutRepository>();
+builder.Services.AddSingleton<IReservationRepository, InMemoryReservationRepository>();
+builder.Services.AddSingleton<IPaymentRepository, InMemoryPaymentRepository>();
+builder.Services.AddSingleton<IMatchRepository, InMemoryMatchRepository>();
 
-builder.Services.AddDbContext<AppDbContext>(opt => opt.UseSqlite(dbPath));
+// --- Servicios de infraestructura ---
+builder.Services.AddSingleton<IClock, SystemClock>();
+builder.Services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
+builder.Services.AddSingleton<ITokenService, JwtTokenService>();
 
-builder.Services.AddScoped<IFieldRepository, SqliteFieldRepository>();
-builder.Services.AddScoped<IReservationRepository, SqliteReservationRepository>();
-builder.Services.AddScoped<ListAvailableSlotsUseCase>();
-builder.Services.AddScoped<CreateReservationUseCase>();
-builder.Services.AddScoped<ListReservationsUseCase>();
-builder.Services.AddScoped<CancelReservationUseCase>();
+// --- Casos de uso (servicios de aplicación) ---
+builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<VenueService>();
+builder.Services.AddScoped<CourtService>();
+builder.Services.AddScoped<AvailabilityService>();
+builder.Services.AddScoped<ReservationService>();
+builder.Services.AddScoped<BlackoutService>();
+builder.Services.AddScoped<PaymentService>();
+builder.Services.AddScoped<ReportService>();
+builder.Services.AddScoped<MatchService>();
 
 builder.Services.AddControllers()
     .AddJsonOptions(opt =>
@@ -27,15 +50,53 @@ builder.Services.AddControllers()
         opt.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.SnakeCaseLower;
     });
 
+// --- Autenticación JWT ---
+var jwtSection = builder.Configuration.GetSection("Jwt");
+var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSection["Key"]!));
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = jwtSection["Issuer"],
+            ValidateAudience = true,
+            ValidAudience = jwtSection["Audience"],
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = signingKey,
+            ValidateLifetime = true,
+            RoleClaimType = ClaimTypes.Role,
+            NameClaimType = ClaimTypes.NameIdentifier,
+            ClockSkew = TimeSpan.FromMinutes(1),
+        };
+    });
+
+builder.Services.AddAuthorization();
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerDoc("v1", new()
+    c.SwaggerDoc("v1", new OpenApiInfo
     {
         Title = "Canchas Sintéticas API",
         Version = "v1",
-        Description = "API de reservas de canchas de fútbol sintético. " +
-                      "Permite consultar disponibilidad, crear y cancelar reservas.",
+        Description = "Plataforma multi-tenant de reserva de canchas sintéticas: marketplace para clientes y panel de gestión para dueños.",
+    });
+
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        In = ParameterLocation.Header,
+        Description = "Ingresa el token JWT (sin el prefijo 'Bearer').",
+    });
+
+    c.AddSecurityRequirement(doc => new OpenApiSecurityRequirement
+    {
+        [new OpenApiSecuritySchemeReference("Bearer", doc)] = new List<string>(),
     });
 
     var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
@@ -44,18 +105,25 @@ builder.Services.AddSwaggerGen(c =>
         c.IncludeXmlComments(xmlPath);
 });
 
+// --- CORS ---
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+    ?? ["http://localhost:5173"];
+
 builder.Services.AddCors(opt =>
     opt.AddDefaultPolicy(policy =>
-        policy.WithOrigins("http://localhost:5173")
+        policy.WithOrigins(allowedOrigins)
               .AllowAnyHeader()
               .AllowAnyMethod()));
 
 var app = builder.Build();
 
+// --- Seed de datos de demostración ---
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    DatabaseSeeder.Seed(db);
+    var db = scope.ServiceProvider.GetRequiredService<InMemoryDatabase>();
+    var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+    var clock = scope.ServiceProvider.GetRequiredService<IClock>();
+    DatabaseSeeder.Seed(db, hasher, clock);
 }
 
 app.UseMiddleware<DomainExceptionMiddleware>();
@@ -67,8 +135,7 @@ app.UseSwaggerUI(c =>
 });
 app.UseCors();
 
-// Default Content-Type to application/json for agents (e.g. Copilot Studio) that omit it.
-// Reads and stores raw body text in HttpContext.Items before model binding consumes the stream.
+// Default Content-Type to application/json for clients/agents that omit it on write requests.
 app.Use(async (ctx, next) =>
 {
     if (string.IsNullOrEmpty(ctx.Request.ContentType)
@@ -79,14 +146,11 @@ app.Use(async (ctx, next) =>
         ctx.Request.ContentType = "application/json; charset=utf-8";
     }
 
-    ctx.Request.EnableBuffering();
-    using (var reader = new StreamReader(ctx.Request.Body, leaveOpen: true))
-        ctx.Items["RawRequestBody"] = await reader.ReadToEndAsync();
-    if (ctx.Request.Body.CanSeek)
-        ctx.Request.Body.Position = 0;
-
     await next();
 });
+
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapControllers();
 
