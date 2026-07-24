@@ -209,7 +209,7 @@ tarde → sin reembolso.
 - [X] T061 [P] Actualizar el README de la API con los nuevos endpoints de pago/webhook/comprobantes
 - [X] T062 Endurecimiento de seguridad: revisar que ningún secreto quede en código/logs, rate-limit básico del webhook, y que el webhook nunca exponga detalles internos
 - [X] T062a Verificar/ajustar que `ReportService` (`total_revenue` por sede/dueño) contabilice solo pagos en estado `Paid` reales y no incluya `Refunded`/`Expired` (FR-028/C4), con test en `dotnet-backend/CanchasSinteticas.Tests/Application/RevenueAttributionTests.cs`
-- [ ] T063 Ejecutar la validación completa de [quickstart.md](./quickstart.md) (escenarios A–H) y corregir desviaciones
+- [ ] T063 Ejecutar la validación completa de [quickstart.md](./quickstart.md) (escenarios A–H) y corregir desviaciones — requiere llaves sandbox de Wompi + túnel HTTPS. Guía paso a paso: [docs/wompi-sandbox.md](../../docs/wompi-sandbox.md)
 
 ---
 
