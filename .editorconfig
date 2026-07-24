@@ -76,3 +76,53 @@ csharp_style_expression_bodied_operators = false:silent
 csharp_style_expression_bodied_properties = true:silent
 csharp_style_expression_bodied_indexers = true:silent
 csharp_style_expression_bodied_accessors = true:silent
+
+# ---------------------------------------------------------------------------
+# StyleCop.Analyzers — severidades
+#
+# El proyecto adopta convenciones (namespaces file-scoped, `using` fuera del
+# namespace, sin prefijo `this.`, sin cabecera de licencia, varios tipos por
+# archivo, `if` de una sola línea sin llaves, documentación en español). Las
+# reglas que contradicen esas convenciones se desactivan para eliminar ruido
+# sin reescribir el código. Se conservan las reglas útiles (SA1600 exige
+# documentar los miembros públicos, y las de espaciado/nombres siguen activas).
+# ---------------------------------------------------------------------------
+
+# Colocación de `using` — el proyecto los ubica fuera del namespace (file-scoped)
+dotnet_diagnostic.SA1200.severity = none
+
+# No se usa el prefijo `this.` en llamadas locales
+dotnet_diagnostic.SA1101.severity = none
+
+# Sin cabecera de licencia/compañía en cada archivo
+dotnet_diagnostic.SA1633.severity = none
+
+# Se permiten `if`/`throw` de una sola línea sin llaves (estilo del proyecto)
+dotnet_diagnostic.SA1503.severity = none
+dotnet_diagnostic.SA1502.severity = none
+
+# Varios tipos relacionados por archivo (DTOs, excepciones, records)
+dotnet_diagnostic.SA1402.severity = none
+dotnet_diagnostic.SA1649.severity = none
+
+# Documentación: se exige el resumen (SA1600), pero no doc de cada parámetro/retorno
+dotnet_diagnostic.SA1611.severity = none
+dotnet_diagnostic.SA1615.severity = none
+dotnet_diagnostic.SA1618.severity = none
+
+# El texto de doc en español no sigue el patrón inglés "Gets or sets ..."
+dotnet_diagnostic.SA1623.severity = none
+
+# Orden de miembros: no se impone el orden estricto de StyleCop
+dotnet_diagnostic.SA1201.severity = none
+dotnet_diagnostic.SA1202.severity = none
+dotnet_diagnostic.SA1204.severity = none
+
+# Ajuste de parámetros en varias líneas: se deja a criterio
+dotnet_diagnostic.SA1117.severity = none
+
+# Análisis de comentarios XML deshabilitado por configuración del proyecto (informativo)
+dotnet_diagnostic.SA0001.severity = none
+
+# Línea en blanco tras llave de apertura (choca con el estilo compacto)
+dotnet_diagnostic.SA1505.severity = none

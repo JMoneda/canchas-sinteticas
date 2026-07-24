@@ -96,7 +96,7 @@ public class Match
     public decimal ShareFor(int index)
     {
         var baseShare = decimal.Truncate(TotalPrice / MaxPlayers);
-        var remainder = (int)(TotalPrice - baseShare * MaxPlayers);
+        var remainder = (int)(TotalPrice - (baseShare * MaxPlayers));
         return baseShare + (index < remainder ? 1m : 0m);
     }
 
