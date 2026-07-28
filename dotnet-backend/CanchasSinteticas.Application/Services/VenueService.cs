@@ -42,6 +42,7 @@ public class VenueService(
             throw new ValidationError("La ciudad es obligatoria.");
         if (string.IsNullOrWhiteSpace(input.Address))
             throw new ValidationError("La dirección es obligatoria.");
+        ContactValidation.EnsurePhoneValid(input.Phone);
 
         var opening = Parsing.ParseTime(input.OpeningTime);
         var closing = Parsing.ParseTime(input.ClosingTime);
@@ -55,7 +56,7 @@ public class VenueService(
             input.City.Trim(),
             input.Address.Trim(),
             BuildLocation(input.Latitude, input.Longitude),
-            input.Phone,
+            ContactValidation.Normalize(input.Phone),
             input.Photos?.ToList() ?? [],
             input.Services?.ToList() ?? [],
             opening,
@@ -72,6 +73,7 @@ public class VenueService(
     public VenueDetailOutput Update(string ownerId, string venueId, UpdateVenueInput input)
     {
         var venue = Ownership.OwnedVenue(venues, ownerId, venueId);
+        ContactValidation.EnsurePhoneValid(input.Phone);
 
         var opening = Parsing.ParseTime(input.OpeningTime);
         var closing = Parsing.ParseTime(input.ClosingTime);
@@ -82,7 +84,7 @@ public class VenueService(
         venue.City = input.City.Trim();
         venue.Address = input.Address.Trim();
         venue.Location = BuildLocation(input.Latitude, input.Longitude);
-        venue.Phone = input.Phone;
+        venue.Phone = ContactValidation.Normalize(input.Phone);
         venue.Photos = input.Photos?.ToList() ?? [];
         venue.Services = input.Services?.ToList() ?? [];
         venue.OpeningTime = opening;

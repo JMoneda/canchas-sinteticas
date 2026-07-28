@@ -4,6 +4,7 @@ import { api, type CreateVenuePayload } from '../api/client';
 import type { VenueDetail } from '../api/types';
 import { useAsync, errorMessage } from '../lib/useAsync';
 import { Button, buttonClasses, Card, EmptyState, ErrorBanner, Field, ModalShell, Spinner, inputClasses } from '../components/ui';
+import { validatePhone } from '../lib/validation';
 
 const emptyForm: CreateVenuePayload = {
   name: '',
@@ -133,6 +134,7 @@ function VenueFormModal({
     name: form.name.trim() ? undefined : 'El nombre es obligatorio.',
     city: form.city.trim() ? undefined : 'La ciudad es obligatoria.',
     address: form.address.trim() ? undefined : 'La dirección es obligatoria.',
+    phone: validatePhone(form.phone ?? '') ?? undefined,
     closing_time:
       form.closing_time > form.opening_time ? undefined : 'El cierre debe ser posterior a la apertura.',
   };
@@ -179,7 +181,7 @@ function VenueFormModal({
             <Field label="Ciudad" required error={attempted ? fieldErrors.city : undefined}>
               <input className={inputClasses} value={form.city} onChange={(e) => update('city', e.target.value)} />
             </Field>
-            <Field label="Teléfono">
+            <Field label="Teléfono" hint="Opcional" error={attempted ? fieldErrors.phone : undefined}>
               <input className={inputClasses} value={form.phone ?? ''} onChange={(e) => update('phone', e.target.value)} />
             </Field>
           </div>

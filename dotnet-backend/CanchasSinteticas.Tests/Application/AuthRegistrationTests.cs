@@ -80,4 +80,27 @@ public class AuthRegistrationTests
         Assert.Equal("nuevo@canchas.co", result.Email);
         Assert.False(string.IsNullOrEmpty(result.Token));
     }
+
+    [Theory]
+    [InlineData("32222222222")]   // 11 dígitos
+    [InlineData("123")]            // muy corto
+    [InlineData("3333333333")]     // dígito repetido (basura)
+    [InlineData("1001234567")]     // no es celular (3XX) ni fijo (60X)
+    public void Register_rejects_invalid_phone(string phone)
+    {
+        var service = BuildService();
+        Assert.Throws<ValidationError>(
+            () => service.Register(new RegisterInput("Juan Pérez", "tel@canchas.co", phone, "Futbol2026", "Client")));
+    }
+
+    [Theory]
+    [InlineData("3001234567")]        // celular
+    [InlineData("+57 300 123 4567")]  // con indicativo
+    [InlineData("604 123 4567")]      // fijo
+    public void Register_accepts_valid_phone(string phone)
+    {
+        var service = BuildService();
+        var result = service.Register(new RegisterInput("Juan Pérez", "tel@canchas.co", phone, "Futbol2026", "Client"));
+        Assert.False(string.IsNullOrEmpty(result.Token));
+    }
 }

@@ -26,6 +26,7 @@ public class AuthService(
         if (!IsValidEmail(input.Email))
             throw new ValidationError("El correo no tiene un formato válido.");
         ValidatePasswordPolicy(input.Password);
+        ContactValidation.EnsurePhoneValid(input.Phone);
 
         var role = Parsing.ParseRegistrationRole(input.Role);
         var email = input.Email.Trim().ToLowerInvariant();
@@ -37,7 +38,7 @@ public class AuthService(
             Guid.NewGuid().ToString(),
             input.Name.Trim(),
             email,
-            input.Phone,
+            ContactValidation.Normalize(input.Phone),
             hasher.Hash(input.Password),
             role,
             clock.Now);

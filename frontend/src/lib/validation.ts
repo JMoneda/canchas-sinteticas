@@ -20,8 +20,10 @@ export function validateEmail(value: string): string | null {
 }
 
 /**
- * Teléfono opcional. Vacío es válido; si se ingresa, admite dígitos con
- * `+`, espacios, guiones y paréntesis, con 7 a 15 dígitos.
+ * Teléfono opcional (Colombia). Vacío es válido; si se ingresa, admite dígitos
+ * con `+`, espacios, guiones y paréntesis, y un indicativo `+57` opcional.
+ * Debe quedar en 10 dígitos (celular `3XX…` o fijo `60X…`) y no puede ser una
+ * secuencia de un mismo dígito repetido (número basura, ej. 32222222222).
  */
 export function validatePhone(value: string): string | null {
   const trimmed = value.trim();
@@ -31,8 +33,21 @@ export function validatePhone(value: string): string | null {
   if (!/^[+\d\s()-]+$/.test(trimmed)) {
     return 'Teléfono no válido.';
   }
-  const digits = trimmed.replace(/\D/g, '');
-  return digits.length >= 7 && digits.length <= 15 ? null : 'Teléfono no válido.';
+  let digits = trimmed.replace(/\D/g, '');
+  // Quitar indicativo de país Colombia (+57) si viene antepuesto a 10 dígitos.
+  if (digits.length === 12 && digits.startsWith('57')) {
+    digits = digits.slice(2);
+  }
+  if (digits.length !== 10) {
+    return 'El teléfono debe tener 10 dígitos (ej. 300 123 4567).';
+  }
+  if (!/^[36]/.test(digits)) {
+    return 'Debe ser un celular (3XX) o un fijo (60X).';
+  }
+  if (/(\d)\1{6,}/.test(digits)) {
+    return 'Ingresa un número de teléfono real.';
+  }
+  return null;
 }
 
 /**

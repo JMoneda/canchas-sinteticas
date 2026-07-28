@@ -56,7 +56,8 @@ public class ReservationService(
         ValidateSlotShape(slot, court, venue);
 
         var clientName = string.IsNullOrWhiteSpace(input.ClientName) ? null : input.ClientName.Trim();
-        var clientPhone = string.IsNullOrWhiteSpace(input.ClientPhone) ? null : input.ClientPhone.Trim();
+        ContactValidation.EnsurePhoneValid(input.ClientPhone);
+        var clientPhone = ContactValidation.Normalize(input.ClientPhone);
 
         return Place(court, venue, slot, WalkInClientId, clientName, clientPhone, ReservationChannel.Manual, PaymentMethod.Cash);
     }
